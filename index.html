@@ -249,9 +249,8 @@
     <h3>大会ごとの結果（大会名＋日付）</h3>
     <div id="tournamentSummary"></div>
 
-    <h3 style="margin-top:12px;">選択した大会の対戦一覧</h3>
+    <!-- 「選択した大会の対戦一覧」部分を削除し、全体統計だけ残す -->
     <div class="stats" id="overallStats"></div>
-    <div id="matchList" class="small"></div>
   </section>
 
 
@@ -540,133 +539,14 @@ function renderTournamentSummary(){
   table.appendChild(tbody);
   div.appendChild(table);
 
-  tbody.querySelectorAll("tr").forEach(tr=>{
-    tr.addEventListener("click",()=>{
-      renderMatchListForTournament(tr.dataset.key);
-      const rect = document.getElementById("matchList").getBoundingClientRect();
-      window.scrollTo({top:rect.top+window.scrollY-60,behavior:"smooth"});
-    });
-  });
+  /* 大会クリックでの「選択した大会の対戦一覧」表示処理は削除 */
 }
 
 /* =========================
-   大会の対戦一覧
+   大会の対戦一覧（未使用だが残しても動作に影響なし）
 ========================= */
 function renderMatchListForTournament(key){
-  const container = document.getElementById("matchList");
-  container.innerHTML = "";
-
-  const [tName, date] = key.split("||");
-
-  const list = appData.matches
-    .filter(m => makeTournamentKey(m.tournamentName, m.matchDate) === key)
-    .sort((a,b)=>{
-      if(a.stage === b.stage){
-        return (a.roundNumber||0) - (b.roundNumber||0);
-      }
-      const sa = a.stage === "本戦" ? 2 : 1;
-      const sb = b.stage === "本戦" ? 2 : 1;
-      return sa - sb;
-    });
-
-  if(list.length === 0){
-    container.textContent = "この大会の対戦データはありません。";
-    return;
-  }
-
-  const wrapper = document.createElement("div");
-  wrapper.className = "match-date-group";
-
-  const title = document.createElement("div");
-  title.className = "match-date-title";
-  title.textContent = `${tName}（${date}）`;
-  wrapper.appendChild(title);
-
-  for(const stage of ["予選","本戦"]){
-    const ms = list.filter(m=>m.stage===stage);
-    if(ms.length === 0) continue;
-
-    const sDiv = document.createElement("div");
-    sDiv.className = "match-stage-group";
-
-    const h4 = document.createElement("h4");
-    h4.textContent = stage;
-    sDiv.appendChild(h4);
-
-    for(const m of ms){
-      const card = document.createElement("div");
-      card.className = "match-card";
-      card.dataset.id = m.id;
-
-      const header = document.createElement("div");
-      header.className = "match-card-header";
-
-      const titleSpan = document.createElement("span");
-      titleSpan.textContent = `R${m.roundNumber}　${m.deckName}`;
-
-      const editBtn = document.createElement("button");
-      editBtn.textContent = "編集";
-      editBtn.className = "secondary match-edit-btn";
-      editBtn.dataset.id = m.id;
-
-      header.appendChild(titleSpan);
-      header.appendChild(editBtn);
-      card.appendChild(header);
-
-      const table = document.createElement("table");
-      const tb = document.createElement("tbody");
-
-      function row(label, html){
-        const tr = document.createElement("tr");
-        const th = document.createElement("th");
-        th.textContent = label;
-        const td = document.createElement("td");
-        td.innerHTML = html;
-        tr.appendChild(th);
-        tr.appendChild(td);
-        return tr;
-      }
-
-      let imgHtml = "";
-      if(m.deckImageDataUrl){
-        imgHtml = `<img src="${m.deckImageDataUrl}" class="thumb deck-image">`;
-      }
-
-      tb.appendChild(row("デッキ画像", imgHtml));
-      tb.appendChild(row("使用デッキ", escapeHtml(m.deckName||"")));
-      tb.appendChild(row("先手／後手", escapeHtml(m.firstOrSecond||"")));
-
-      let resultHtml = "";
-      if(m.result === "勝ち"){
-        resultHtml = `<span class="badge win">勝ち</span>`;
-      }else if(m.result === "負け"){
-        resultHtml = `<span class="badge lose">負け</span>`;
-      }
-      tb.appendChild(row("勝敗", resultHtml));
-
-      tb.appendChild(row("相手デッキ", escapeHtml(m.opponentDeckName||"")));
-      tb.appendChild(row("メモ", escapeHtml(m.memo||"")));
-      tb.appendChild(row("記録日時", escapeHtml(m.createdAt||"")));
-
-      table.appendChild(tb);
-      card.appendChild(table);
-      sDiv.appendChild(card);
-    }
-
-    wrapper.appendChild(sDiv);
-  }
-
-  container.appendChild(wrapper);
-
-  document.querySelectorAll(".match-edit-btn").forEach(btn=>{
-    btn.addEventListener("click",()=>{
-      const id = btn.dataset.id;
-      const m = appData.matches.find(x=>x.id===id);
-      if(m) startEdit(m);
-    });
-  });
-
-  setupImageOverlayHandlers();
+  /* 選択した大会の対戦一覧機能は削除済みのため未使用 */
 }
 
 /* =========================
@@ -689,13 +569,6 @@ function renderMatches(){
   }
 
   renderTournamentSummary();
-
-  const matchList = document.getElementById("matchList");
-  if(appData.matches.length === 0){
-    matchList.textContent = "まだ対戦記録がありません。";
-  }else{
-    matchList.textContent = "上の「大会ごとの結果」から大会をタップすると、この場所にその大会の対戦一覧が表示されます。";
-  }
 }
 
 /* =========================
