@@ -765,9 +765,18 @@ function startEdit(m){
    対戦追加・更新
 ========================= */
 document.getElementById("addMatchButton").addEventListener("click", ()=>{
-  let matchDate = document.getElementById("matchDate").value || todayDate();
+  let matchDateInput = document.getElementById("matchDate");
+  let matchDate = matchDateInput.value;
+
+  // 空なら今日で補完し、入力欄にも反映
+  if(!matchDate){
+    matchDate = todayDate();
+    matchDateInput.value = matchDate;
+  }
+
   let tournamentName = document.getElementById("tournamentName").value.trim();
   if(!tournamentName) tournamentName = "大会";
+  // 以下は今のままで大丈夫
 
   const stage = document.getElementById("matchStage").value || "予選";
   let deckName = document.getElementById("matchDeckName").value.trim();
