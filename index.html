@@ -49,7 +49,7 @@
     .win{ background:#2e7d32; }
     .lose{ background:#c62828; }
     .stats{ margin-top:8px; font-size:13px; line-height:1.6; }
-    .thumb{ max-width:60px; max-height:60px; display:block; }
+    .thumb{ max-width:60px; max-height:60px; display:block; cursor:pointer; }
     .match-date-group{
       margin-bottom:12px;
       border-top:2px solid #ccc;
@@ -101,6 +101,42 @@
     #tournamentSummary tr:hover{
       background:#f7f7f7;
     }
+    /* 画像拡大表示用オーバーレイ */
+    .image-overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.8);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:9999;
+    }
+    .image-overlay-content{
+      position:relative;
+      max-width:95vw;
+      max-height:95vh;
+    }
+    .image-overlay-content img{
+      max-width:95vw;
+      max-height:95vh;
+      display:block;
+    }
+    .image-overlay-close{
+      position:absolute;
+      top:-10px;
+      right:-10px;
+      background:#000;
+      color:#fff;
+      border-radius:50%;
+      width:28px;
+      height:28px;
+      line-height:24px;
+      text-align:center;
+      border:1px solid #fff;
+      cursor:pointer;
+      font-size:18px;
+      padding:0;
+    }
   </style>
 </head>
 <body>
@@ -136,7 +172,7 @@
       <div>
         <label for="matchDeckImage">デッキ画像（任意・1枚）</label>
         <input type="file" id="matchDeckImage" accept="image/*" />
-        <div class="small">同じ日＋同じ大会名で連続入力するときは、前の対戦のデッキを自動で引き継ぎます。</div>
+        <div class="small">同じ日＋同じ大会名のときは、前の対戦のデッキと画像を自動で引き継ぎます。</div>
         <div id="currentDeckImageInfo" class="small" style="display:none;">
           現在のデッキ画像:
           <br>
@@ -263,8 +299,15 @@
   </section>
 </main>
 
+<!-- 画像拡大用オーバーレイ -->
+<div id="imageOverlay" class="image-overlay">
+  <div class="image-overlay-content">
+    <button id="imageOverlayClose" class="image-overlay-close">×</button>
+    <img id="imageOverlayImg" alt="deck image large">
+  </div>
+</div>
+
 <script>
-  // v10拡張: 同じ日＋同じ大会名の連続入力時にデッキ情報を引き継ぎ
   const STORAGE_KEY = "dm_match_tracker_data_v10";
 
   function normalizeMatchesOnly(data){
@@ -729,7 +772,7 @@
             const img = document.createElement("img");
             img.src = m.deckImageDataUrl;
             img.alt = m.deckName || "";
-            img.className = "thumb";
+            img.className = "thumb deck-image";
             tdDeckImg.appendChild(img);
           }else{
             tdDeckImg.textContent = "";
@@ -817,6 +860,7 @@
       });
     });
 
+    setupImageOverlayHandlers();
     renderTournamentSummary();
   }
 
@@ -825,9 +869,6 @@
     let win = 0;
     let lose = 0;
     let firstTotal = 0;
-    let firstWin = 0;
-    let secondTotal = 0;
-    let secondWin = 0;
 
     for(const m of appData.matches){
       const d = m.matchDate;
@@ -841,15 +882,10 @@
 
       if(m.firstOrSecond === "先手"){
         firstTotal++;
-        if(m.result === "勝ち") firstWin++;
-      }
-      if(m.firstOrSecond === "後手"){
-        secondTotal++;
-        if(m.result === "勝ち") secondWin++;
       }
     }
 
-    return { total, win, lose, firstTotal, firstWin, secondTotal, secondWin };
+    return { total, win, lose, firstTotal };
   }
 
   function fillFormForEdit(m){
@@ -894,7 +930,6 @@
     document.getElementById("editStatus").textContent = "";
   }
 
-  // 同じ日＋同じ大会名の連続入力用：直前の対戦からデッキを引き継ぐ
   function prepareFormForNextMatchFrom(baseMatch){
     editingMatchId = null;
     document.getElementById("matchDate").value = baseMatch.matchDate || todayDate();
@@ -932,11 +967,21 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function findLastMatchSameTournament(matchDate, tournamentName){
+    let last = null;
+    for(const m of appData.matches){
+      if(m.matchDate === matchDate && (m.tournamentName || "大会") === tournamentName){
+        last = m;
+      }
+    }
+    return last;
+  }
+
   document.getElementById("addMatchButton").addEventListener("click", () => {
     let matchDate = document.getElementById("matchDate").value;
     let tournamentName = document.getElementById("tournamentName").value.trim();
     const stage = document.getElementById("matchStage").value || "予選";
-    const deckName = document.getElementById("matchDeckName").value.trim();
+    let deckName = document.getElementById("matchDeckName").value.trim();
     const fileInput = document.getElementById("matchDeckImage");
     const file = fileInput.files && fileInput.files[0];
     const roundStr = document.getElementById("matchRound").value;
@@ -952,6 +997,14 @@
     if(!tournamentName){
       tournamentName = "大会";
     }
+
+    const lastMatchSameTournament = findLastMatchSameTournament(matchDate, tournamentName);
+
+    if(!deckName && lastMatchSameTournament){
+      deckName = lastMatchSameTournament.deckName || "";
+      document.getElementById("matchDeckName").value = deckName;
+    }
+
     if(!deckName){
       alert("使用デッキ名を入力してください。");
       return;
@@ -986,17 +1039,26 @@
       }
     }
 
+    const lastDeckImage = lastMatchSameTournament ? (lastMatchSameTournament.deckImageDataUrl || null) : null;
+
     function saveWithImage(imageDataUrl){
-      const finalImage = imageDataUrl !== null && imageDataUrl !== undefined
-        ? imageDataUrl
-        : existingImage;
+      let finalImage;
+      if(imageDataUrl !== null && imageDataUrl !== undefined){
+        finalImage = imageDataUrl;
+      }else if(existingImage != null){
+        finalImage = existingImage;
+      }else if(lastDeckImage != null){
+        finalImage = lastDeckImage;
+      }else{
+        finalImage = null;
+      }
 
       if(editingMatchId && existing){
         existing.matchDate = matchDate;
         existing.tournamentName = tournamentName;
         existing.stage = stage;
         existing.deckName = deckName;
-        existing.deckImageDataUrl = finalImage || null;
+        existing.deckImageDataUrl = finalImage;
         existing.roundNumber = roundNumber;
         existing.firstOrSecond = firstOrSecond;
         existing.result = result;
@@ -1012,7 +1074,7 @@
           tournamentName,
           stage,
           deckName,
-          deckImageDataUrl: finalImage || null,
+          deckImageDataUrl: finalImage,
           roundNumber,
           firstOrSecond,
           result,
@@ -1131,8 +1193,7 @@
     }
 
     const gameRate = percent(stats.win, stats.total);
-    const firstRate = percent(stats.firstWin, stats.firstTotal);
-    const secondRate = percent(stats.secondWin, stats.secondTotal);
+    const firstRateAll = percent(stats.firstTotal, stats.total);
 
     const startLabel = startDate || "指定なし";
     const endLabel = endDate || "指定なし";
@@ -1142,11 +1203,34 @@
       `対戦数: ${stats.total}<br>` +
       `ゲーム勝率: 勝ち ${stats.win} / ${stats.total}` +
       (gameRate != null ? `（${gameRate}%）` : "") + `<br>` +
-      `先手: 勝ち ${stats.firstWin} / ${stats.firstTotal}` +
-      (firstRate != null ? `（${firstRate}%）` : "") + `<br>` +
-      `後手: 勝ち ${stats.secondWin} / ${stats.secondTotal}` +
-      (secondRate != null ? `（${secondRate}%）` : "");
+      `先手率: 先手 ${stats.firstTotal} / ${stats.total}` +
+      (firstRateAll != null ? `（${firstRateAll}%）` : "");
   });
+
+  function setupImageOverlayHandlers(){
+    const overlay = document.getElementById("imageOverlay");
+    const overlayImg = document.getElementById("imageOverlayImg");
+    const closeBtn = document.getElementById("imageOverlayClose");
+
+    document.querySelectorAll(".deck-image").forEach(img => {
+      img.addEventListener("click", () => {
+        overlayImg.src = img.src;
+        overlay.style.display = "flex";
+      });
+    });
+
+    closeBtn.onclick = () => {
+      overlay.style.display = "none";
+      overlayImg.src = "";
+    };
+
+    overlay.addEventListener("click", (e) => {
+      if(e.target === overlay){
+        overlay.style.display = "none";
+        overlayImg.src = "";
+      }
+    });
+  }
 
   function init(){
     document.getElementById("matchDate").value = todayDate();
