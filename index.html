@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>対戦記録（ローカル保存＋バックアップ）</title>
+  <style>
+    body{
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin:0; background:#f4f4f4; font-size:14px;
+    }
+    header{
+      background:#333; color:#fff; padding:12px 16px;
+      display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+    }
+    header h1{ margin:0; font-size:18px; line-height:1.2; }
+    main{ padding:16px; max-width:1100px; margin:0 auto; }
+    .section{
+      background:#fff; border-radius:6px; padding:12px 14px; margin-bottom:14px;
+      box-shadow:0 1px 2px rgba(0,0,0,.08);
+    }
+    h2{ margin:0 0 8px 0; font-size:16px; border-left:4px solid #333; padding-left:8px; }
+    h3{ margin:12px 0 6px 0; font-size:14px; }
+    label{ display:block; margin-top:8px; margin-bottom:4px; }
+    input[type="text"], input[type="date"], input[type="number"], select, textarea{
+      width:100%; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;
+      padding:8px 10px; font-size:14px; background:#fff;
+    }
+    textarea{ min-height:70px; resize:vertical; }
+    button{
+      padding:8px 12px; border-radius:4px; border:1px solid #333; background:#333; color:#fff;
+      font-size:14px; cursor:pointer;
+    }
+    button.secondary{ background:#777; border-color:#777; }
+    button.danger{ background:#b00020; border-color:#b00020; }
+    button:disabled{ opacity:.5; cursor:default; }
+    .grid{ display:flex; gap:14px; flex-wrap:wrap; }
+    .grid .section{ flex:1 1 320px; }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; }
+    .row > div{ flex:1 1 160px; }
+    table{ width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
+    th, td{ border:1px solid #ddd; padding:6px 8px; text-align:left; vertical-align:top; word-break:break-word; }
+    th{ background:#f0f0f0; }
+    .small{ font-size:12px; color:#666; line-height:1.55; }
+    .hint{
+      margin-top:10px; padding:10px 12px; border-radius:6px;
+      background:#fff7e6; border:1px solid #ffe0a3; font-size:12px; line-height:1.55;
+    }
+    .badge{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; color:#fff; margin-right:6px; }
+    .win{ background:#2e7d32; }
+    .lose{ background:#c62828; }
+    .stats{ margin-top:8px; font-size:13px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>対戦記録（ローカル保存＋バックアップ）</h1>
+  <button class="danger" id="resetDataButton">データを全部削除</button>
+</header>
+
+<main>
+  <section class="section">
+    <h2>バックアップ</h2>
+
+    <div class="row">
+      <div>
+        <button class="secondary" id="exportButton">バックアップを書き出し（JSON）</button>
+        <div class="small">iPhoneでは「ファイル」に保存できます。</div>
+      </div>
+      <div>
+        <label for="importFile">バックアップを読み込む（JSON）</label>
+        <input type="file" id="importFile" accept="application/json" />
+        <button class="secondary" id="importButton">読み込みして復元</button>
+      </div>
+    </div>
+
+    <div class="hint">
+      復元をすると、今のデータは上書きされます。復元前に、必ず書き出し（バックアップ）を取ってください。
+      iPhoneで「Safariの履歴とWebサイトデータを消去」などを行うと、このアプリの記録が消える可能性があります。
+      大会が終わったら書き出し、が安全です。
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="section">
+      <h2>デッキ管理</h2>
+
+      <h3>デッキを追加</h3>
+      <label for="deckName">デッキ名</label>
+      <input type="text" id="deckName" placeholder="例：青黒サガ" />
+
+      <label for="deckFormat">フォーマットなど（任意）</label>
+      <input type="text" id="deckFormat" placeholder="例：オリジナル／アドバンス など" />
+
+      <label for="deckMemo">メモ（任意）</label>
+      <textarea id="deckMemo" placeholder="採用カードの特徴など"></textarea>
+
+      <button id="addDeckButton">デッキを追加</button>
+
+      <h3>デッキ一覧</h3>
+      <table id="deckTable">
+        <thead><tr><th>デッキ名</th><th>フォーマット</th><th>メモ</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>大会管理</h2>
+
+      <h3>大会を追加</h3>
+      <label for="tournamentName">大会名</label>
+      <input type="text" id="tournamentName" placeholder="例：◯◯CS 1/14" />
+
+_toggle
+      <label for="tournamentDate">開催日</label>
+      <input type="date" id="tournamentDate" />
+
+      <label for="tournamentMemo">メモ（任意）</label>
+      <textarea id="tournamentMemo" placeholder="会場、形式など"></textarea>
+
+      <button id="addTournamentButton">大会を追加</button>
+
+      <h3>大会一覧</h3>
+      <table id="tournamentTable">
+        <thead><tr><th>大会名</th><th>日付</th><th>戦績</th><th>メモ</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+
+  <section class="section">
+    <h2>対戦記録</h2>
+
+    <h3>対戦を追加</h3>
+    <label for="matchTournamentSelect">大会</label>
+    <select id="matchTournamentSelect">
+      <option value="">大会を選択</option>
+    </select>
+
+    <label for="matchDeckSelect">使用デッキ</label>
+    <select id="matchDeckSelect">
+      <option value="">デッキを選択</option>
+    </select>
+
+    <div class="row">
+      <div>
+        <label for="matchRound">ラウンド（第何回戦）</label>
+        <input type="number" id="matchRound" min="1" placeholder="例：1" />
+      </div>
+      <div>
+        <label for="matchFirstSecond">先手／後手</label>
+        <select id="matchFirstSecond">
+          <option value="">選択</option>
+          <option value="先手">先手</option>
+          <option value="後手">後手</option>
+        </select>
+      </div>
+      <div>
+        <label for="matchResult">勝敗</label>
+        <select id="matchResult">
+          <option value="">選択</option>
+          <option value="勝ち">勝ち</option>
+          <option value="負け">負け</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="matchScore">マッチスコア（任意）</label>
+        <input type="text" id="matchScore" placeholder="例：2-1" />
+      </div>
+      <div>
+        <label for="matchOpponentDeck">相手デッキ名（任意）</label>
+        <input type="text" id="matchOpponentDeck" placeholder="例：赤青マジック" />
+      </div>
+    </div>
+
+    <label for="matchMemo">メモ（任意）</label>
+    <textarea id="matchMemo" placeholder="プレイの反省点など"></textarea>
+
+    <button id="addMatchButton">対戦を追加</button>
+  </section>
+
+  <section class="section">
+    <h2>大会ごとの対戦一覧</h2>
+
+    <label for="viewTournamentSelect">表示する大会</label>
+    <select id="viewTournamentSelect">
+      <option value="">大会を選択</option>
+    </select>
+
+    <div class="stats" id="viewTournamentStats"></div>
+
+    <table id="matchTable">
+      <thead>
+        <tr>
+          <th>R</th><th>使用デッキ</th><th>先手／後手</th><th>勝敗</th><th>スコア</th><th>相手デッキ</th><th>メモ</th><th>記録日時</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</main>
+
+<script>
+  const STORAGE_KEY = "dm_match_tracker_data_v3";
+
+  function loadData(){
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return { tournaments: [], decks: [], matches: [] };
+    try{
+      const data = JSON.parse(raw);
+      if(!data || typeof data !== "object") return { tournaments: [], decks: [], matches: [] };
+      if(!Array.isArray(data.tournaments)) data.tournaments = [];
+      if(!Array.isArray(data.decks)) data.decks = [];
+      if(!Array.isArray(data.matches)) data.matches = [];
+      return data;
+    }catch{
+      return { tournaments: [], decks: [], matches: [] };
+    }
+  }
+
+  function saveData(data){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+
+  function id(prefix){
+    return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
+  }
+
+  function escapeHtml(v){
+    return String(v ?? "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#39;");
+  }
+
+  function nowString(){
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth()+1).padStart(2,"0");
+    const dd = String(d.getDate()).padStart(2,"0");
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mi = String(d.getMinutes()).padStart(2,"0");
+    return `${yyyy}-${mm}-${dd}_${hh}${mi}`;
+  }
+
+  function createdAtString(){
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth()+1).padStart(2,"0");
+    const dd = String(d.getDate()).padStart(2,"0");
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mi = String(d.getMinutes()).padStart(2,"0");
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+  }
+
+  function validateImportedData(data){
+    if(!data || typeof data !== "object") return "JSONの中身が不正です。";
+    if(!Array.isArray(data.tournaments) || !Array.isArray(data.decks) || !Array.isArray(data.matches)){
+      return "tournaments / decks / matches の形式が不正です。";
+    }
+    for(const t of data.tournaments){
+      if(!t || typeof t !== "object") return "大会データが不正です。";
+      if(typeof t.id !== "string" || typeof t.name !== "string") return "大会のid/nameが不正です。";
+    }
+    for(const d of data.decks){
+      if(!d || typeof d !== "object") return "デッキデータが不正です。";
+      if(typeof d.id !== "string" || typeof d.name !== "string") return "デッキのid/nameが不正です。";
+    }
+    for(const m of data.matches){
+      if(!m || typeof m !== "object") return "対戦データが不正です。";
+      if(typeof m.id !== "string" || typeof m.tournamentId !== "string" || typeof m.deckId !== "string"){
+        return "対戦のid/tournamentId/deckIdが不正です。";
+      }
+    }
+    return null;
+  }
+
+  let appData = loadData();
+
+  function tournamentStats(tournamentId){
+    const ms = appData.matches.filter(m => m.tournamentId === tournamentId);
+    let win = 0, lose = 0;
+    for(const m of ms){
+      if(m.result === "勝ち") win++;
+      if(m.result === "負け") lose++;
+    }
+    return { win, lose, total: ms.length };
+  }
+
+  function renderDecks(){
+    const tbody = document.querySelector("#deckTable tbody");
+    tbody.innerHTML = "";
+    for(const d of appData.decks){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.format)}</td><td>${escapeHtml(d.memo)}</td>`;
+      tbody.appendChild(tr);
+    }
+
+    const sel = document.getElementById("matchDeckSelect");
+    sel.innerHTML = `<option value="">デッキを選択</option>`;
+    for(const d of appData.decks){
+      const opt = document.createElement("option");
+      opt.value = d.id;
+      opt.textContent = d.name;
+      sel.appendChild(opt);
+    }
+  }
+
+  function renderTournaments(){
+    const tbody = document.querySelector("#tournamentTable tbody");
+    tbody.innerHTML = "";
+    for(const t of appData.tournaments){
+      const s = tournamentStats(t.id);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(t.name)}</td>
+        <td>${escapeHtml(t.date || "")}</td>
+        <td>
+          <span class="badge win">勝ち ${s.win}</span>
+          <span class="badge lose">負け ${s.lose}</span>
+          （合計 ${s.total}）
+        </td>
+        <td>${escapeHtml(t.memo || "")}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    const selAdd = document.getElementById("matchTournamentSelect");
+    const selView = document.getElementById("viewTournamentSelect");
+    selAdd.innerHTML = `<option value="">大会を選択</option>`;
+    selView.innerHTML = `<option value="">大会を選択</option>`;
+
+    for(const t of appData.tournaments){
+      const label = t.name + (t.date ? `（${t.date}）` : "");
+      const opt1 = document.createElement("option");
+      opt1.value = t.id; opt1.textContent = label;
+      selAdd.appendChild(opt1);
+
+      const opt2 = document.createElement("option");
+      opt2.value = t.id; opt2.textContent = label;
+      selView.appendChild(opt2);
+    }
+  }
+
+  function renderMatches(tournamentId){
+    const tbody = document.querySelector("#matchTable tbody");
+    tbody.innerHTML = "";
+    const statsDiv = document.getElementById("viewTournamentStats");
+
+    if(!tournamentId){
+      statsDiv.textContent = "";
+      return;
+    }
+
+    const list = appData.matches
+      .filter(m => m.tournamentId === tournamentId)
+      .sort((a,b) => (a.roundNumber || 0) - (b.roundNumber || 0));
+
+    const s = tournamentStats(tournamentId);
+    if(list.length === 0){
+      statsDiv.textContent = "この大会の対戦記録はまだありません。";
+      return;
+    }
+    statsDiv.textContent = `勝ち: ${s.win} / 負け: ${s.lose} / 合計: ${s.total}`;
+
+    for(const m of list){
+      const deck = appData.decks.find(d => d.id === m.deckId);
+      const result = m.result === "勝ち"
+        ? `<span class="badge win">勝ち</span>`
+        : (m.result === "負け" ? `<span class="badge lose">負け</span>` : "");
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(m.roundNumber || "")}</td>
+        <td>${escapeHtml(deck ? deck.name : "")}</td>
+        <td>${escapeHtml(m.firstOrSecond || "")}</td>
+        <td>${result}</td>
+        <td>${escapeHtml(m.score || "")}</td>
+        <td>${escapeHtml(m.opponentDeckName || "")}</td>
+        <td>${escapeHtml(m.memo || "")}</td>
+        <td>${escapeHtml(m.createdAt || "")}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  document.getElementById("addDeckButton").addEventListener("click", () => {
+    const name = document.getElementById("deckName").value.trim();
+    const format = document.getElementById("deckFormat").value.trim();
+    const memo = document.getElementById("deckMemo").value.trim();
+    if(!name){ alert("デッキ名を入力してください。"); return; }
+
+    appData.decks.push({ id: id("deck"), name, format, memo });
+    saveData(appData);
+    renderDecks();
+
+    document.getElementById("deckName").value = "";
+    document.getElementById("deckFormat").value = "";
+    document.getElementById("deckMemo").value = "";
+  });
+
+  document.getElementById("addTournamentButton").addEventListener("click", () => {
+    const name = document.getElementById("tournamentName").value.trim();
+    const date = document.getElementById("tournamentDate").value;
+    const memo = document.getElementById("tournamentMemo").value.trim();
+    if(!name){ alert("大会名を入力してください。"); return; }
+
+    appData.tournaments.push({ id: id("tournament"), name, date, memo });
+    saveData(appData);
+    renderTournaments();
+
+    document.getElementById("tournamentName").value = "";
+    document.getElementById("tournamentDate").value = "";
+    document.getElementById("tournamentMemo").value = "";
+  });
+
+  document.getElementById("addMatchButton").addEventListener("click", () => {
+    const tournamentId = document.getElementById("matchTournamentSelect").value;
+    const deckId = document.getElementById("matchDeckSelect").value;
+    const roundStr = document.getElementById("matchRound").value;
+    const firstOrSecond = document.getElementById("matchFirstSecond").value;
+    const result = document.getElementById("matchResult").value;
+    const score = document.getElementById("matchScore").value.trim();
+    const opponentDeckName = document.getElementById("matchOpponentDeck").value.trim();
+    const memo = document.getElementById("matchMemo").value.trim();
+
+    if(!tournamentId){ alert("大会を選択してください。"); return; }
+    if(!deckId){ alert("使用デッキを選択してください。"); return; }
+
+    const roundNumber = roundStr ? parseInt(roundStr, 10) : 0;
+    if(!roundNumber || roundNumber <= 0){ alert("ラウンドを1以上の数値で入力してください。"); return; }
+    if(!firstOrSecond){ alert("先手／後手を選択してください。"); return; }
+    if(!result){ alert("勝敗（勝ち／負け）を選択してください。"); return; }
+
+    appData.matches.push({
+      id: id("match"),
+      tournamentId,
+      deckId,
+      roundNumber,
+      firstOrSecond,
+      result,
+      score,
+      opponentDeckName,
+      memo,
+      createdAt: createdAtString()
+    });
+
+    saveData(appData);
+    renderTournaments();
+
+    const viewId = document.getElementById("viewTournamentSelect").value;
+    if(viewId === tournamentId) renderMatches(tournamentId);
+
+    document.getElementById("matchRound").value = "";
+    document.getElementById("matchFirstSecond").value = "";
+    document.getElementById("matchResult").value = "";
+    document.getElementById("matchScore").value = "";
+    document.getElementById("matchOpponentDeck").value = "";
+    document.getElementById("matchMemo").value = "";
+  });
+
+  document.getElementById("viewTournamentSelect").addEventListener("change", (e) => {
+    renderMatches(e.target.value);
+  });
+
+  document.getElementById("resetDataButton").addEventListener("click", () => {
+    const ok = confirm("保存している大会・デッキ・対戦のデータをすべて削除します。よろしいですか？");
+    if(!ok) return;
+    appData = { tournaments: [], decks: [], matches: [] };
+    saveData(appData);
+    renderDecks();
+    renderTournaments();
+    document.getElementById("viewTournamentSelect").value = "";
+    renderMatches("");
+  });
+
+  document.getElementById("exportButton").addEventListener("click", () => {
+    const payload = {
+      version: 3,
+      exportedAt: new Date().toISOString(),
+      tournaments: appData.tournaments,
+      decks: appData.decks,
+      matches: appData.matches
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `match_backup_${nowString()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById("importButton").addEventListener("click", () => {
+    const fileInput = document.getElementById("importFile");
+    if(!fileInput.files || fileInput.files.length === 0){
+      alert("読み込むJSONファイルを選択してください。");
+      return;
+    }
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const data = JSON.parse(String(reader.result || ""));
+        const err = validateImportedData(data);
+        if(err){ alert("復元できません：" + err); return; }
+
+        const ok = confirm("復元を実行します。今のデータは上書きされます。よろしいですか？");
+        if(!ok) return;
+
+        appData = {
+          tournaments: data.tournaments,
+          decks: data.decks,
+          matches: data.matches
+        };
+        saveData(appData);
+        renderDecks();
+        renderTournaments();
+        document.getElementById("viewTournamentSelect").value = "";
+        renderMatches("");
+        fileInput.value = "";
+        alert("復元しました。");
+      }catch{
+        alert("JSONの読み込みに失敗しました。");
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  });
+
+  function init(){
+    renderDecks();
+    renderTournaments();
+    renderMatches("");
+  }
+  init();
+</script>
+</body>
+</html>
