@@ -1004,13 +1004,26 @@ function init(){
   document.getElementById("matchDate").value = todayDate();
   document.getElementById("matchStage").value = "予選";
 
+  // ★大会名の自動セット（前回値）
+  const lastName = getLastTournamentName();
+  if(lastName){
+    document.getElementById("tournamentName").value = lastName;
+  }
+
   document.getElementById("matchDate").addEventListener("change",applyCarryOverIfPossible);
   document.getElementById("tournamentName").addEventListener("input",applyCarryOverIfPossible);
 
   renderMatches();
 }
 
+
 init();
+  function getLastTournamentName(){
+  if(appData.matches.length === 0) return "";
+  const last = appData.matches[appData.matches.length - 1];
+  return last.tournamentName || "";
+}
+
 </script>
 
 </script>
