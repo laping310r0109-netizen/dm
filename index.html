@@ -35,13 +35,18 @@
     button.secondary{ background:#777; border-color:#777; }
     button.danger{ background:#b00020; border-color:#b00020; }
     button:disabled{ opacity:.5; cursor:default; }
+
+    /* ここを常に縦並びに */
     .row{
-      display:flex; gap:12px; flex-wrap:wrap;
+      display:block;
+      margin-bottom:6px;
     }
     .row > div{
-      flex:1 1 160px;
-      min-width:0;
+      width:100%;
+      box-sizing:border-box;
+      margin-bottom:6px;
     }
+
     table{ width:100%; border-collapse:collapse; font-size:13px; }
     th, td{
       border:1px solid #ddd; padding:4px 6px; text-align:left;
@@ -110,7 +115,6 @@
       background:#f7f7f7;
     }
 
-    /* 画像拡大表示用オーバーレイ */
     .image-overlay{
       position:fixed;
       inset:0;
@@ -147,20 +151,12 @@
       padding:0;
     }
 
-    /* スマホ用レイアウト調整 */
     @media (max-width: 600px){
       header h1{
         font-size:16px;
       }
       main{
         padding:12px;
-      }
-      .row{
-        flex-direction:column;
-        gap:6px;
-      }
-      .row > div{
-        flex:1 1 100%;
       }
       table{
         font-size:12px;
@@ -180,7 +176,6 @@
 
     <h3>対戦を追加 / 編集</h3>
 
-    <!-- 上段：日付＋大会名 -->
     <div class="row">
       <div>
         <label for="matchDate">対戦日（大会日）</label>
@@ -192,7 +187,6 @@
       </div>
     </div>
 
-    <!-- 次：デッキ名＋画像 -->
     <div class="row">
       <div>
         <label for="matchDeckName">使用デッキ名</label>
@@ -210,7 +204,6 @@
       </div>
     </div>
 
-    <!-- 次：予選本戦＋ラウンド -->
     <div class="row">
       <div>
         <label for="matchStage">ステージ</label>
@@ -225,7 +218,6 @@
       </div>
     </div>
 
-    <!-- 次：相手デッキ -->
     <div class="row">
       <div>
         <label for="matchOpponentDeck">相手デッキ名（任意）</label>
@@ -233,7 +225,6 @@
       </div>
     </div>
 
-    <!-- 次：先手後手＋勝敗 -->
     <div class="row">
       <div>
         <label for="matchFirstSecond">先手／後手</label>
@@ -267,19 +258,19 @@
     <div id="editStatus" class="small"></div>
   </section>
 
-  <!-- 2. 対戦結果（大会ごとの結果＋一覧） -->
+  <!-- 2. 対戦結果 -->
   <section class="section">
     <h2>対戦結果</h2>
 
     <h3>大会ごとの結果（大会名＋日付）</h3>
     <div id="tournamentSummary"></div>
 
-    <h3 style="margin-top:12px;">対戦一覧（大会ごと → 予選・本戦）</h3>
+    <h3 style="margin-top:12px;">選択した大会の対戦一覧</h3>
     <div class="stats" id="overallStats"></div>
-    <div id="matchList"></div>
+    <div id="matchList" class="small"></div>
   </section>
 
-  <!-- 3. 勝率計算（期間集計） -->
+  <!-- 3. 勝率計算 -->
   <section class="section">
     <h2>勝率計算（期間で集計）</h2>
 
@@ -298,7 +289,7 @@
     <div id="periodResult" class="stats"></div>
   </section>
 
-  <!-- 4. バックアップ・データ削除（いちばん下） -->
+  <!-- 4. バックアップ・データ削除 -->
   <section class="section">
     <h2>バックアップ・データ削除</h2>
 
@@ -328,7 +319,6 @@
   </section>
 </main>
 
-<!-- 画像拡大用オーバーレイ -->
 <div id="imageOverlay" class="image-overlay">
   <div class="image-overlay-content">
     <button id="imageOverlayClose" class="image-overlay-close">×</button>
@@ -337,7 +327,7 @@
 </div>
 
 <script>
-  const STORAGE_KEY = "dm_match_tracker_data_v10";
+  const STORAGE_KEY = "dm_match_tracker_data_v11";
 
   function normalizeMatchesOnly(data){
     if(!data || typeof data !== "object"){
@@ -449,6 +439,7 @@
     }
 
     const oldKeys = [
+      "dm_match_tracker_data_v10",
       "dm_match_tracker_data_v9",
       "dm_match_tracker_data_v8",
       "dm_match_tracker_data_v7",
@@ -464,7 +455,8 @@
       try{
         const d = JSON.parse(r);
         let migrated;
-        if(key === "dm_match_tracker_data_v9" ||
+        if(key === "dm_match_tracker_data_v10" ||
+           key === "dm_match_tracker_data_v9" ||
            key === "dm_match_tracker_data_v8" ||
            key === "dm_match_tracker_data_v7" ||
            key === "dm_match_tracker_data_v6" ||
@@ -549,13 +541,14 @@
   let editingMatchId = null;
 
   function overallStats(){
-    let total = 0, win = 0, lose = 0;
+    let total = 0, win = 0, lose = 0, firstTotal = 0;
     for(const m of appData.matches){
       total++;
       if(m.result === "勝ち") win++;
       if(m.result === "負け") lose++;
+      if(m.firstOrSecond === "先手") firstTotal++;
     }
-    return { total, win, lose };
+    return { total, win, lose, firstTotal };
   }
 
   function percent(win, total){
@@ -580,12 +573,6 @@
     const name = tName || "大会名未設定";
     const d = date || "日付未設定";
     return name + "||" + d;
-  }
-
-  function safeAnchorId(tName, date){
-    const name = (tName || "no_name").replace(/[^a-zA-Z0-9\u00C0-\uFFFF]+/g, "");
-    const d = (date || "nodate").replace(/[^0-9]+/g, "");
-    return "group-" + name + "-" + d;
   }
 
   function renderTournamentSummary(){
@@ -667,219 +654,171 @@
       tr.addEventListener("click", () => {
         const key = tr.dataset.key;
         if(!key) return;
-        const [tName, date] = key.split("||");
-        if(date === "日付未設定") return;
-        const anchorId = safeAnchorId(tName, date);
-        const target = document.getElementById(anchorId);
-        if(target){
-          window.scrollTo({
-            top: target.getBoundingClientRect().top + window.scrollY - 80,
-            behavior: "smooth"
-          });
-        }
+        renderMatchListForTournament(key);
+        const matchList = document.getElementById("matchList");
+        const rect = matchList.getBoundingClientRect();
+        window.scrollTo({
+          top: rect.top + window.scrollY - 60,
+          behavior: "smooth"
+        });
       });
     });
   }
 
-  function renderMatches(){
+  function renderMatchListForTournament(key){
     const container = document.getElementById("matchList");
     container.innerHTML = "";
 
-    const list = [...appData.matches].sort((a,b) => {
-      const da = a.matchDate || "";
-      const db = b.matchDate || "";
-      if(da === db){
-        const na = a.tournamentName || "大会";
-        const nb = b.tournamentName || "大会";
-        if(na === nb){
-          const sa = a.stage || "予選";
-          const sb = b.stage || "予選";
-          if(sa === sb){
-            return (a.roundNumber || 0) - (b.roundNumber || 0);
-          }
-          const order = { "予選": 1, "本戦": 2 };
-          const oa = order[sa] || 99;
-          const ob = order[sb] || 99;
-          return oa - ob;
-        }
-        return na.localeCompare(nb, "ja");
-      }
-      return da < db ? -1 : 1;
-    });
+    const [tName, date] = key.split("||");
+    const titleName = tName || "大会名未設定";
+    const titleDate = date === "日付未設定" ? "日付未設定" : date;
 
-    const s = overallStats();
-    const rate = percent(s.win, s.total);
-    const overallDiv = document.getElementById("overallStats");
-    if(!s.total){
-      overallDiv.textContent = "まだ対戦記録がありません。";
-    }else{
-      overallDiv.textContent =
-        `全対戦数: ${s.total}　勝ち: ${s.win}　負け: ${s.lose}` +
-        (rate != null ? `　勝率: ${rate}%` : "");
-    }
+    const list = appData.matches
+      .filter(m => makeTournamentKey(m.tournamentName || "大会名未設定", m.matchDate || "日付未設定") === key)
+      .sort((a,b) => {
+        const sa = a.stage || "予選";
+        const sb = b.stage || "予選";
+        if(sa === sb){
+          return (a.roundNumber || 0) - (b.roundNumber || 0);
+        }
+        const order = { "予選": 1, "本戦": 2 };
+        const oa = order[sa] || 99;
+        const ob = order[sb] || 99;
+        return oa - ob;
+      });
 
     if(list.length === 0){
-      renderTournamentSummary();
+      container.textContent = "この大会の対戦データはありません。";
       return;
     }
 
-    const byTournament = {};
-    for(const m of list){
-      const date = m.matchDate || "日付未設定";
-      const tName = m.tournamentName || "大会名未設定";
-      const key = makeTournamentKey(tName, date);
-      if(!byTournament[key]) byTournament[key] = [];
-      byTournament[key].push(m);
-    }
+    const wrapper = document.createElement("div");
+    wrapper.className = "match-date-group";
 
-    const keys = Object.keys(byTournament).sort((a,b) => {
-      const [na, da] = a.split("||");
-      const [nb, db] = b.split("||");
-      if(da === db){
-        return na.localeCompare(nb, "ja");
-      }
-      if(da === "日付未設定") return -1;
-      if(db === "日付未設定") return 1;
-      return da < db ? -1 : 1;
-    });
+    const titleDiv = document.createElement("div");
+    titleDiv.className = "match-date-title";
+    titleDiv.textContent = `${titleName}（${titleDate}）`;
+    wrapper.appendChild(titleDiv);
 
-    for(const key of keys){
-      const [tName, date] = key.split("||");
-      const ms = byTournament[key];
+    const stages = ["予選", "本戦"];
+    for(const stage of stages){
+      const msStage = list.filter(m => (m.stage || "予選") === stage);
+      if(msStage.length === 0) continue;
 
-      const groupDiv = document.createElement("div");
-      groupDiv.className = "match-date-group";
-      if(date !== "日付未設定"){
-        groupDiv.id = safeAnchorId(tName, date);
-      }
+      const stageDiv = document.createElement("div");
+      stageDiv.className = "match-stage-group";
 
-      const titleDiv = document.createElement("div");
-      titleDiv.className = "match-date-title";
-      const nameText = tName || "大会名未設定";
-      const dateText = date === "日付未設定" ? "日付未設定" : date;
-      titleDiv.textContent = `${nameText}（${dateText}）`;
-      groupDiv.appendChild(titleDiv);
+      const stageTitle = document.createElement("h4");
+      stageTitle.textContent = stage;
+      stageDiv.appendChild(stageTitle);
 
-      const stages = ["予選", "本戦"];
-      for(const stage of stages){
-        const msStage = ms.filter(m => (m.stage || "予選") === stage);
-        if(msStage.length === 0) continue;
+      for(const m of msStage){
+        const card = document.createElement("div");
+        card.className = "match-card";
+        card.dataset.id = m.id;
 
-        const stageDiv = document.createElement("div");
-        stageDiv.className = "match-stage-group";
+        const header = document.createElement("div");
+        header.className = "match-card-header";
+        const infoSpan = document.createElement("span");
+        const rText = m.roundNumber != null ? `R${m.roundNumber}` : "R-";
+        infoSpan.textContent = `${rText}　${m.deckName || ""}`;
+        const editBtn = document.createElement("button");
+        editBtn.textContent = "編集";
+        editBtn.className = "secondary match-edit-btn";
+        editBtn.dataset.id = m.id;
+        header.appendChild(infoSpan);
+        header.appendChild(editBtn);
+        card.appendChild(header);
 
-        const stageTitle = document.createElement("h4");
-        stageTitle.textContent = stage;
-        stageDiv.appendChild(stageTitle);
+        const table = document.createElement("table");
+        const tbody = document.createElement("tbody");
 
-        for(const m of msStage){
-          const card = document.createElement("div");
-          card.className = "match-card";
-          card.dataset.id = m.id;
-
-          const header = document.createElement("div");
-          header.className = "match-card-header";
-          const infoSpan = document.createElement("span");
-          const rText = m.roundNumber != null ? `R${m.roundNumber}` : "R-";
-          infoSpan.textContent = `${rText}　${m.deckName || ""}`;
-          const editBtn = document.createElement("button");
-          editBtn.textContent = "編集";
-          editBtn.className = "secondary match-edit-btn";
-          editBtn.dataset.id = m.id;
-          header.appendChild(infoSpan);
-          header.appendChild(editBtn);
-          card.appendChild(header);
-
-          const table = document.createElement("table");
-          const tbody = document.createElement("tbody");
-
-          const rowDeckImg = document.createElement("tr");
-          const thDeckImg = document.createElement("th");
-          thDeckImg.textContent = "デッキ画像";
-          const tdDeckImg = document.createElement("td");
-          if(m.deckImageDataUrl){
-            const img = document.createElement("img");
-            img.src = m.deckImageDataUrl;
-            img.alt = m.deckName || "";
-            img.className = "thumb deck-image";
-            tdDeckImg.appendChild(img);
-          }else{
-            tdDeckImg.textContent = "";
-          }
-          rowDeckImg.appendChild(thDeckImg);
-          rowDeckImg.appendChild(tdDeckImg);
-          tbody.appendChild(rowDeckImg);
-
-          const rowDeck = document.createElement("tr");
-          const thDeck = document.createElement("th");
-          thDeck.textContent = "使用デッキ";
-          const tdDeck = document.createElement("td");
-          tdDeck.textContent = m.deckName || "";
-          rowDeck.appendChild(thDeck);
-          rowDeck.appendChild(tdDeck);
-          tbody.appendChild(rowDeck);
-
-          const rowFS = document.createElement("tr");
-          const thFS = document.createElement("th");
-          thFS.textContent = "先手／後手";
-          const tdFS = document.createElement("td");
-          tdFS.textContent = m.firstOrSecond || "";
-          rowFS.appendChild(thFS);
-          rowFS.appendChild(tdFS);
-          tbody.appendChild(rowFS);
-
-          const rowResult = document.createElement("tr");
-          const thResult = document.createElement("th");
-          thResult.textContent = "勝敗";
-          const tdResult = document.createElement("td");
-          if(m.result === "勝ち"){
-            tdResult.innerHTML = `<span class="badge win">勝ち</span>`;
-          }else if(m.result === "負け"){
-            tdResult.innerHTML = `<span class="badge lose">負け</span>`;
-          }else{
-            tdResult.textContent = "";
-          }
-          rowResult.appendChild(thResult);
-          rowResult.appendChild(tdResult);
-          tbody.appendChild(rowResult);
-
-          const rowOpp = document.createElement("tr");
-          const thOpp = document.createElement("th");
-          thOpp.textContent = "相手デッキ";
-          const tdOpp = document.createElement("td");
-          tdOpp.textContent = m.opponentDeckName || "";
-          rowOpp.appendChild(thOpp);
-          rowOpp.appendChild(tdOpp);
-          tbody.appendChild(rowOpp);
-
-          const rowMemo = document.createElement("tr");
-          const thMemo = document.createElement("th");
-          thMemo.textContent = "メモ";
-          const tdMemo = document.createElement("td");
-          tdMemo.textContent = m.memo || "";
-          rowMemo.appendChild(thMemo);
-          rowMemo.appendChild(tdMemo);
-          tbody.appendChild(rowMemo);
-
-          const rowCreated = document.createElement("tr");
-          const thCreated = document.createElement("th");
-          thCreated.textContent = "記録日時";
-          const tdCreated = document.createElement("td");
-          tdCreated.textContent = m.createdAt || "";
-          rowCreated.appendChild(thCreated);
-          rowCreated.appendChild(tdCreated);
-          tbody.appendChild(rowCreated);
-
-          table.appendChild(tbody);
-          card.appendChild(table);
-          stageDiv.appendChild(card);
+        const rowDeckImg = document.createElement("tr");
+        const thDeckImg = document.createElement("th");
+        thDeckImg.textContent = "デッキ画像";
+        const tdDeckImg = document.createElement("td");
+        if(m.deckImageDataUrl){
+          const img = document.createElement("img");
+          img.src = m.deckImageDataUrl;
+          img.alt = m.deckName || "";
+          img.className = "thumb deck-image";
+          tdDeckImg.appendChild(img);
+        }else{
+          tdDeckImg.textContent = "";
         }
+        rowDeckImg.appendChild(thDeckImg);
+        rowDeckImg.appendChild(tdDeckImg);
+        tbody.appendChild(rowDeckImg);
 
-        groupDiv.appendChild(stageDiv);
+        const rowDeck = document.createElement("tr");
+        const thDeck = document.createElement("th");
+        thDeck.textContent = "使用デッキ";
+        const tdDeck = document.createElement("td");
+        tdDeck.textContent = m.deckName || "";
+        rowDeck.appendChild(thDeck);
+        rowDeck.appendChild(tdDeck);
+        tbody.appendChild(rowDeck);
+
+        const rowFS = document.createElement("tr");
+        const thFS = document.createElement("th");
+        thFS.textContent = "先手／後手";
+        const tdFS = document.createElement("td");
+        tdFS.textContent = m.firstOrSecond || "";
+        rowFS.appendChild(thFS);
+        rowFS.appendChild(tdFS);
+        tbody.appendChild(rowFS);
+
+        const rowResult = document.createElement("tr");
+        const thResult = document.createElement("th");
+        thResult.textContent = "勝敗";
+        const tdResult = document.createElement("td");
+        if(m.result === "勝ち"){
+          tdResult.innerHTML = `<span class="badge win">勝ち</span>`;
+        }else if(m.result === "負け"){
+          tdResult.innerHTML = `<span class="badge lose">負け</span>`;
+        }else{
+          tdResult.textContent = "";
+        }
+        rowResult.appendChild(thResult);
+        rowResult.appendChild(tdResult);
+        tbody.appendChild(rowResult);
+
+        const rowOpp = document.createElement("tr");
+        const thOpp = document.createElement("th");
+        thOpp.textContent = "相手デッキ";
+        const tdOpp = document.createElement("td");
+        tdOpp.textContent = m.opponentDeckName || "";
+        rowOpp.appendChild(thOpp);
+        rowOpp.appendChild(tdOpp);
+        tbody.appendChild(rowOpp);
+
+        const rowMemo = document.createElement("tr");
+        const thMemo = document.createElement("th");
+        thMemo.textContent = "メモ";
+        const tdMemo = document.createElement("td");
+        tdMemo.textContent = m.memo || "";
+        rowMemo.appendChild(thMemo);
+        rowMemo.appendChild(tdMemo);
+        tbody.appendChild(rowMemo);
+
+        const rowCreated = document.createElement("tr");
+        const thCreated = document.createElement("th");
+        thCreated.textContent = "記録日時";
+        const tdCreated = document.createElement("td");
+        tdCreated.textContent = m.createdAt || "";
+        rowCreated.appendChild(thCreated);
+        rowCreated.appendChild(tdCreated);
+        tbody.appendChild(rowCreated);
+
+        table.appendChild(tbody);
+        card.appendChild(table);
+        stageDiv.appendChild(card);
       }
 
-      container.appendChild(groupDiv);
+      wrapper.appendChild(stageDiv);
     }
+
+    container.appendChild(wrapper);
 
     document.querySelectorAll(".match-edit-btn").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -890,7 +829,31 @@
     });
 
     setupImageOverlayHandlers();
+  }
+
+  function renderMatches(){
+    const overallDiv = document.getElementById("overallStats");
+    const s = overallStats();
+    const winRate = percent(s.win, s.total);
+    const firstRate = percent(s.firstTotal, s.total);
+
+    if(!s.total){
+      overallDiv.textContent = "まだ対戦記録がありません。";
+    }else{
+      overallDiv.textContent =
+        `全対戦数: ${s.total}　勝ち: ${s.win}　負け: ${s.lose}` +
+        (winRate != null ? `　勝率: ${winRate}%` : "") +
+        (firstRate != null ? `　先手率: 先手 ${s.firstTotal} / ${s.total}（${firstRate}%）` : "");
+    }
+
     renderTournamentSummary();
+
+    const matchList = document.getElementById("matchList");
+    if(appData.matches.length === 0){
+      matchList.textContent = "まだ対戦記録がありません。対戦を記録すると、ここに大会を選んで一覧を表示できます。";
+    }else{
+      matchList.textContent = "上の「大会ごとの結果」から大会をタップすると、この場所にその大会の対戦一覧が表示されます。";
+    }
   }
 
   function calcPeriodStats(startDate, endDate){
@@ -1145,7 +1108,7 @@
 
   document.getElementById("exportButton").addEventListener("click", () => {
     const payload = {
-      version: 10,
+      version: 11,
       exportedAt: new Date().toISOString(),
       matches: appData.matches
     };
