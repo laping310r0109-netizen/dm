@@ -6,147 +6,146 @@
   <title>対戦記録（ローカル保存＋バックアップ）</title>
   <style>
     body{
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  margin:0; background:#f4f4f4; font-size:14px;
-}
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin:0; background:#f4f4f4; font-size:14px;
+    }
 
-header{
-  background:#333; color:#fff; padding:12px 16px;
-}
-header h1{ margin:0; font-size:18px; line-height:1.2; }
+    header{
+      background:#333; color:#fff; padding:12px 16px;
+    }
+    header h1{ margin:0; font-size:18px; line-height:1.2; }
 
-main{ padding:16px; max-width:1100px; margin:0 auto; }
+    main{ padding:16px; max-width:1100px; margin:0 auto; }
 
-.section{
-  background:#fff; border-radius:6px; padding:12px 14px; margin-bottom:14px;
-  box-shadow:0 1px 2px rgba(0,0,0,.08);
-}
+    .section{
+      background:#fff; border-radius:6px; padding:12px 14px; margin-bottom:14px;
+      box-shadow:0 1px 2px rgba(0,0,0,.08);
+    }
 
-h2{ margin:0 0 8px 0; font-size:16px; border-left:4px solid #333; padding-left:8px; }
-h3{ margin:12px 0 6px 0; font-size:14px; }
-h4{ margin:8px 0 4px 0; font-size:13px; }
+    h2{ margin:0 0 8px 0; font-size:16px; border-left:4px solid #333; padding-left:8px; }
+    h3{ margin:12px 0 6px 0; font-size:14px; }
+    h4{ margin:8px 0 4px 0; font-size:13px; }
 
-label{ display:block; margin-top:8px; margin-bottom:4px; }
+    label{ display:block; margin-top:8px; margin-bottom:4px; }
 
-input[type="text"], input[type="date"], input[type="number"], select, textarea{
-  width:100%; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;
-  padding:8px 10px; font-size:14px; background:#fff;
-}
-input[type="file"]{ width:100%; font-size:13px; }
-textarea{ min-height:70px; resize:vertical; }
+    input[type="text"], input[type="date"], input[type="number"], select, textarea{
+      width:100%; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;
+      padding:8px 10px; font-size:14px; background:#fff;
+    }
+    input[type="file"]{ width:100%; font-size:13px; }
+    textarea{ min-height:70px; resize:vertical; }
 
-button{
-  padding:8px 12px; border-radius:4px; border:1px solid #333; background:#333; color:#fff;
-  font-size:14px; cursor:pointer;
-}
-button.secondary{ background:#777; border-color:#777; }
-button.danger{ background:#b00020; border-color:#b00020; }
-button:disabled{ opacity:.5; cursor:default; }
+    button{
+      padding:8px 12px; border-radius:4px; border:1px solid #333; background:#333; color:#fff;
+      font-size:14px; cursor:pointer;
+    }
+    button.secondary{ background:#777; border-color:#777; }
+    button.danger{ background:#b00020; border-color:#b00020; }
+    button:disabled{ opacity:.5; cursor:default; }
 
-/* ここ重要：すべて縦一列 */
-.row{
-  display:block;
-  margin-bottom:6px;
-}
-.row > div{
-  width:100%;
-  box-sizing:border-box;
-  margin-bottom:6px;
-}
+    /* すべて縦一列 */
+    .row{
+      display:block;
+      margin-bottom:6px;
+    }
+    .row > div{
+      width:100%;
+      box-sizing:border-box;
+      margin-bottom:6px;
+    }
 
-table{
-  width:100%; border-collapse:collapse; font-size:13px;
-}
-th, td{
-  border:1px solid #ddd; padding:4px 6px; text-align:left;
-  vertical-align:top; word-break:break-word;
-}
-th{ background:#f0f0f0; }
+    table{
+      width:100%; border-collapse:collapse; font-size:13px;
+    }
+    th, td{
+      border:1px solid #ddd; padding:4px 6px; text-align:left;
+      vertical-align:top; word-break:break-word;
+    }
+    th{ background:#f0f0f0; }
 
-.small{ font-size:12px; color:#666; line-height:1.55; }
+    .small{ font-size:12px; color:#666; line-height:1.55; }
 
-.hint{
-  margin-top:10px; padding:10px 12px; border-radius:6px;
-  background:#fff7e6; border:1px solid #ffe0a3; font-size:12px; line-height:1.55;
-}
+    .hint{
+      margin-top:10px; padding:10px 12px; border-radius:6px;
+      background:#fff7e6; border:1px solid #ffe0a3; font-size:12px; line-height:1.55;
+    }
 
-.badge{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; color:#fff; }
-.win{ background:#2e7d32; }
-.lose{ background:#c62828; }
+    .badge{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; color:#fff; }
+    .win{ background:#2e7d32; }
+    .lose{ background:#c62828; }
 
-.stats{ margin-top:8px; font-size:13px; line-height:1.6; }
+    .stats{ margin-top:8px; font-size:13px; line-height:1.6; }
 
-.thumb{ max-width:60px; max-height:60px; display:block; cursor:pointer; }
+    .thumb{ max-width:60px; max-height:60px; display:block; cursor:pointer; }
 
-.match-date-group{
-  margin-bottom:12px; border-top:2px solid #ccc; padding-top:8px;
-}
-.match-date-title{
-  font-weight:bold; margin-bottom:4px;
-}
-.match-stage-group{
-  margin-left:4px; margin-bottom:8px;
-}
+    .match-date-group{
+      margin-bottom:12px; border-top:2px solid #ccc; padding-top:8px;
+    }
+    .match-date-title{
+      font-weight:bold; margin-bottom:4px;
+    }
+    .match-stage-group{
+      margin-left:4px; margin-bottom:8px;
+    }
 
-.match-card{
-  border:1px solid #ddd; border-radius:6px;
-  padding:8px; margin-bottom:6px; background:#fafafa;
-}
+    .match-card{
+      border:1px solid #ddd; border-radius:6px;
+      padding:8px; margin-bottom:6px; background:#fafafa;
+    }
 
-/* 修正済：横並び禁止 */
-.match-card-header{
-  display:block;
-  margin-bottom:6px;
-  font-size:13px;
-  font-weight:bold;
-}
-.match-card-header span{
-  display:block;
-}
-.match-card-header .match-edit-btn{
-  display:block;
-  width:100%;
-  margin-top:6px;
-}
+    /* ヘッダも縦並び */
+    .match-card-header{
+      display:block;
+      margin-bottom:6px;
+      font-size:13px;
+      font-weight:bold;
+    }
+    .match-card-header span{
+      display:block;
+    }
+    .match-card-header .match-edit-btn{
+      display:block;
+      width:100%;
+      margin-top:6px;
+    }
 
-/* 画像拡大用 */
-.image-overlay{
-  position:fixed;
-  inset:0;
-  background:rgba(0,0,0,0.8);
-  display:none;
-  align-items:center;
-  justify-content:center;
-  z-index:9999;
-}
-.image-overlay-content{
-  position:relative;
-  max-width:95vw;
-  max-height:95vh;
-}
-.image-overlay-content img{
-  max-width:95vw;
-  max-height:95vh;
-  display:block;
-}
-.image-overlay-close{
-  position:absolute;
-  top:-10px;
-  right:-10px;
-  background:#000; color:#fff;
-  border-radius:50%;
-  width:28px; height:28px;
-  line-height:24px; text-align:center;
-  border:1px solid #fff;
-  cursor:pointer; font-size:18px;
-}
+    /* 画像拡大用 */
+    .image-overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.8);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:9999;
+    }
+    .image-overlay-content{
+      position:relative;
+      max-width:95vw;
+      max-height:95vh;
+    }
+    .image-overlay-content img{
+      max-width:95vw;
+      max-height:95vh;
+      display:block;
+    }
+    .image-overlay-close{
+      position:absolute;
+      top:-10px;
+      right:-10px;
+      background:#000; color:#fff;
+      border-radius:50%;
+      width:28px; height:28px;
+      line-height:24px; text-align:center;
+      border:1px solid #fff;
+      cursor:pointer; font-size:18px;
+    }
 
-@media (max-width: 600px){
-  header h1{ font-size:16px; }
-  main{ padding:12px; }
-  table{ font-size:12px; }
-}
-
+    @media (max-width: 600px){
+      header h1{ font-size:16px; }
+      main{ padding:12px; }
+      table{ font-size:12px; }
+    }
   </style>
 </head>
 <body>
@@ -317,7 +316,6 @@ th{ background:#f0f0f0; }
 </div>
 
 <script>
-<script>
 const STORAGE_KEY = "dm_match_tracker_data_v11";
 
 /* =========================
@@ -372,8 +370,8 @@ function nowFileTime(){
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,"0");
   const da = String(d.getDate()).padStart(2,"0");
-  const h = String(d.getHours()).padStart(2,"0");
-  const mi = String(d.getMinutes()).padStart(2,"0");
+  const h = String(d.getHours()+0).padStart(2,"0");
+  const mi = String(d.getMinutes()+0).padStart(2,"0");
   return `${y}-${m}-${da}_${h}${mi}`;
 }
 
@@ -768,7 +766,6 @@ document.getElementById("addMatchButton").addEventListener("click", ()=>{
   let matchDateInput = document.getElementById("matchDate");
   let matchDate = matchDateInput.value;
 
-  // 空なら今日で補完し、入力欄にも反映
   if(!matchDate){
     matchDate = todayDate();
     matchDateInput.value = matchDate;
@@ -776,7 +773,6 @@ document.getElementById("addMatchButton").addEventListener("click", ()=>{
 
   let tournamentName = document.getElementById("tournamentName").value.trim();
   if(!tournamentName) tournamentName = "大会";
-  // 以下は今のままで大丈夫
 
   const stage = document.getElementById("matchStage").value || "予選";
   let deckName = document.getElementById("matchDeckName").value.trim();
@@ -870,7 +866,6 @@ document.getElementById("addMatchButton").addEventListener("click", ()=>{
     renderMatches();
     clearForm();
 
-    // 直前の大会名をフォームに戻しておく
     document.getElementById("tournamentName").value = tournamentName;
   }
 
@@ -1046,10 +1041,6 @@ function init(){
 }
 
 init();
-</script>
-
-
-
 </script>
 </body>
 </html>
