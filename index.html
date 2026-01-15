@@ -115,35 +115,61 @@
 
     <h3>対戦を追加 / 編集</h3>
 
-    <label for="matchDate">対戦日（大会日）</label>
-    <input type="date" id="matchDate" />
-
-    <label for="tournamentName">大会名</label>
-    <input type="text" id="tournamentName" placeholder="例：〇〇CS（空なら『大会』として保存）" />
-
-    <label for="matchStage">ステージ</label>
-    <select id="matchStage">
-      <option value="予選">予選</option>
-      <option value="本戦">本戦</option>
-    </select>
-
-    <label for="matchDeckName">使用デッキ名</label>
-    <input type="text" id="matchDeckName" placeholder="例：青黒サガ" />
-
-    <label for="matchDeckImage">デッキ画像（任意・1枚）</label>
-    <input type="file" id="matchDeckImage" accept="image/*" />
-    <div class="small">画像は対戦ごとに保存されます。画像を変更しない場合はそのままでかまいません。</div>
-    <div id="currentDeckImageInfo" class="small" style="display:none;">
-      現在のデッキ画像:
-      <br>
-      <img id="currentDeckImagePreview" class="thumb" alt="deck image preview">
+    <!-- 上段：日付＋大会名 -->
+    <div class="row">
+      <div>
+        <label for="matchDate">対戦日（大会日）</label>
+        <input type="date" id="matchDate" />
+      </div>
+      <div>
+        <label for="tournamentName">大会名</label>
+        <input type="text" id="tournamentName" placeholder="例：〇〇CS（空なら『大会』）" />
+      </div>
     </div>
 
+    <!-- 次：デッキ名＋画像 -->
     <div class="row">
+      <div>
+        <label for="matchDeckName">使用デッキ名</label>
+        <input type="text" id="matchDeckName" placeholder="例：青黒サガ" />
+      </div>
+      <div>
+        <label for="matchDeckImage">デッキ画像（任意・1枚）</label>
+        <input type="file" id="matchDeckImage" accept="image/*" />
+        <div class="small">同じ日＋同じ大会名で連続入力するときは、前の対戦のデッキを自動で引き継ぎます。</div>
+        <div id="currentDeckImageInfo" class="small" style="display:none;">
+          現在のデッキ画像:
+          <br>
+          <img id="currentDeckImagePreview" class="thumb" alt="deck image preview">
+        </div>
+      </div>
+    </div>
+
+    <!-- 次：予選本戦＋ラウンド -->
+    <div class="row">
+      <div>
+        <label for="matchStage">ステージ</label>
+        <select id="matchStage">
+          <option value="予選">予選</option>
+          <option value="本戦">本戦</option>
+        </select>
+      </div>
       <div>
         <label for="matchRound">ラウンド（空なら自動で1,2,…）</label>
         <input type="number" id="matchRound" min="1" placeholder="空のままでOK" />
       </div>
+    </div>
+
+    <!-- 次：相手デッキ -->
+    <div class="row">
+      <div>
+        <label for="matchOpponentDeck">相手デッキ名（任意）</label>
+        <input type="text" id="matchOpponentDeck" placeholder="例：赤青マジック" />
+      </div>
+    </div>
+
+    <!-- 次：先手後手＋勝敗 -->
+    <div class="row">
       <div>
         <label for="matchFirstSecond">先手／後手</label>
         <select id="matchFirstSecond">
@@ -159,13 +185,6 @@
           <option value="勝ち">勝ち</option>
           <option value="負け">負け</option>
         </select>
-      </div>
-    </div>
-
-    <div class="row">
-      <div>
-        <label for="matchOpponentDeck">相手デッキ名（任意）</label>
-        <input type="text" id="matchOpponentDeck" placeholder="例：赤青マジック" />
       </div>
     </div>
 
@@ -245,7 +264,7 @@
 </main>
 
 <script>
-  // v10: matches のみ。大会は「大会名＋日付」で管理。
+  // v10拡張: 同じ日＋同じ大会名の連続入力時にデッキ情報を引き継ぎ
   const STORAGE_KEY = "dm_match_tracker_data_v10";
 
   function normalizeMatchesOnly(data){
@@ -875,6 +894,33 @@
     document.getElementById("editStatus").textContent = "";
   }
 
+  // 同じ日＋同じ大会名の連続入力用：直前の対戦からデッキを引き継ぐ
+  function prepareFormForNextMatchFrom(baseMatch){
+    editingMatchId = null;
+    document.getElementById("matchDate").value = baseMatch.matchDate || todayDate();
+    document.getElementById("tournamentName").value = baseMatch.tournamentName || "";
+    document.getElementById("matchStage").value = baseMatch.stage || "予選";
+    document.getElementById("matchDeckName").value = baseMatch.deckName || "";
+    document.getElementById("matchDeckImage").value = "";
+    document.getElementById("matchRound").value = "";
+    document.getElementById("matchFirstSecond").value = "";
+    document.getElementById("matchResult").value = "";
+    document.getElementById("matchOpponentDeck").value = "";
+    document.getElementById("matchMemo").value = "";
+    const infoDiv = document.getElementById("currentDeckImageInfo");
+    const img = document.getElementById("currentDeckImagePreview");
+    if(baseMatch.deckImageDataUrl){
+      infoDiv.style.display = "block";
+      img.src = baseMatch.deckImageDataUrl;
+    }else{
+      infoDiv.style.display = "none";
+      img.src = "";
+    }
+    document.getElementById("addMatchButton").textContent = "対戦を追加";
+    document.getElementById("cancelEditButton").style.display = "none";
+    document.getElementById("editStatus").textContent = "";
+  }
+
   function startEdit(m){
     editingMatchId = m.id;
     fillFormForEdit(m);
@@ -901,6 +947,7 @@
 
     if(!matchDate){
       matchDate = todayDate();
+      document.getElementById("matchDate").value = matchDate;
     }
     if(!tournamentName){
       tournamentName = "大会";
@@ -955,8 +1002,11 @@
         existing.result = result;
         existing.opponentDeckName = opponentDeckName;
         existing.memo = memo;
+        saveData(appData);
+        renderMatches();
+        clearFormAndEditState();
       }else{
-        appData.matches.push({
+        const newMatch = {
           id: genId("match"),
           matchDate,
           tournamentName,
@@ -969,12 +1019,12 @@
           opponentDeckName,
           memo,
           createdAt: createdAtString()
-        });
+        };
+        appData.matches.push(newMatch);
+        saveData(appData);
+        renderMatches();
+        prepareFormForNextMatchFrom(newMatch);
       }
-
-      saveData(appData);
-      renderMatches();
-      clearFormAndEditState();
     }
 
     if(file){
