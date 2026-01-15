@@ -49,7 +49,7 @@
     .badge{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; color:#fff; margin-right:6px; }
     .win{ background:#2e7d32; }
     .lose{ background:#c62828; }
-    .stats{ margin-top:8px; font-size:13px; }
+    .stats{ margin-top:8px; font-size:13px; line-height:1.6; }
   </style>
 </head>
 <body>
@@ -75,9 +75,8 @@
     </div>
 
     <div class="hint">
-      復元をすると、今のデータは上書きされます。復元前に、必ず書き出し（バックアップ）を取ってください。
+      復元をすると、今のデータは上書きされます。復元前に、必ず書き出し（バックアップ）を取ってください。<br>
       iPhoneで「Safariの履歴とWebサイトデータを消去」などを行うと、このアプリの記録が消える可能性があります。
-      大会が終わったら書き出し、が安全です。
     </div>
   </section>
 
@@ -110,7 +109,6 @@
       <h3>大会を追加</h3>
       <label for="tournamentName">大会名</label>
       <input type="text" id="tournamentName" placeholder="例：◯◯CS 1/14" />
-
 
       <label for="tournamentDate">開催日</label>
       <input type="date" id="tournamentDate" />
@@ -200,6 +198,25 @@
       </thead>
       <tbody></tbody>
     </table>
+  </section>
+
+  <section class="section">
+    <h2>期間での勝率集計</h2>
+
+    <label for="periodStart">開始日（大会の日付）</label>
+    <input type="date" id="periodStart" />
+
+    <label for="periodEnd">終了日（大会の日付）</label>
+    <input type="date" id="periodEnd" />
+
+    <button id="calcPeriodButton">この期間で集計する</button>
+
+    <div class="small">
+      大会の「開催日」が入力されている対戦だけを集計します。<br>
+      開始日か終了日を空欄にすると、その側は制限なしで集計します。
+    </div>
+
+    <div id="periodResult" class="stats"></div>
   </section>
 </main>
 
@@ -389,6 +406,45 @@
     }
   }
 
+  function percent(win, total){
+    if(!total) return null;
+    return Math.round((win / total) * 1000) / 10; // 小数1桁
+  }
+
+  function calcPeriodStats(startDate, endDate){
+    let total = 0;
+    let win = 0;
+    let lose = 0;
+    let firstTotal = 0;
+    let firstWin = 0;
+    let secondTotal = 0;
+    let secondWin = 0;
+
+    for(const m of appData.matches){
+      const t = appData.tournaments.find(x => x.id === m.tournamentId);
+      if(!t || !t.date) continue;
+      const d = t.date; // YYYY-MM-DD
+
+      if(startDate && d < startDate) continue;
+      if(endDate && d > endDate) continue;
+
+      total++;
+      if(m.result === "勝ち") win++;
+      if(m.result === "負け") lose++;
+
+      if(m.firstOrSecond === "先手"){
+        firstTotal++;
+        if(m.result === "勝ち") firstWin++;
+      }
+      if(m.firstOrSecond === "後手"){
+        secondTotal++;
+        if(m.result === "勝ち") secondWin++;
+      }
+    }
+
+    return { total, win, lose, firstTotal, firstWin, secondTotal, secondWin };
+  }
+
   document.getElementById("addDeckButton").addEventListener("click", () => {
     const name = document.getElementById("deckName").value.trim();
     const format = document.getElementById("deckFormat").value.trim();
@@ -477,6 +533,7 @@
     renderTournaments();
     document.getElementById("viewTournamentSelect").value = "";
     renderMatches("");
+    document.getElementById("periodResult").textContent = "";
   });
 
   document.getElementById("exportButton").addEventListener("click", () => {
@@ -528,6 +585,7 @@
         renderTournaments();
         document.getElementById("viewTournamentSelect").value = "";
         renderMatches("");
+        document.getElementById("periodResult").textContent = "";
         fileInput.value = "";
         alert("復元しました。");
       }catch{
@@ -535,6 +593,41 @@
       }
     };
     reader.readAsText(file, "utf-8");
+  });
+
+  document.getElementById("calcPeriodButton").addEventListener("click", () => {
+    const startDate = document.getElementById("periodStart").value;
+    const endDate = document.getElementById("periodEnd").value;
+
+    if(startDate && endDate && startDate > endDate){
+      alert("開始日は終了日以前にしてください。");
+      return;
+    }
+
+    const stats = calcPeriodStats(startDate, endDate);
+    const div = document.getElementById("periodResult");
+
+    if(stats.total === 0){
+      div.textContent = "この期間に集計対象の対戦はありません。";
+      return;
+    }
+
+    const gameRate = percent(stats.win, stats.total);
+    const firstRate = percent(stats.firstWin, stats.firstTotal);
+    const secondRate = percent(stats.secondWin, stats.secondTotal);
+
+    const startLabel = startDate || "指定なし";
+    const endLabel = endDate || "指定なし";
+
+    div.innerHTML =
+      `対象期間: ${escapeHtml(startLabel)} 〜 ${escapeHtml(endLabel)}<br>` +
+      `対戦数: ${stats.total}<br>` +
+      `ゲーム勝率: 勝ち ${stats.win} / ${stats.total}` +
+      (gameRate != null ? `（${gameRate}%）` : "") + `<br>` +
+      `先手: 勝ち ${stats.firstWin} / ${stats.firstTotal}` +
+      (firstRate != null ? `（${firstRate}%）` : "") + `<br>` +
+      `後手: 勝ち ${stats.secondWin} / ${stats.secondTotal}` +
+      (secondRate != null ? `（${secondRate}%）` : "");
   });
 
   function init(){
