@@ -51,9 +51,7 @@
     .win{ background:#2e7d32; }
     .lose{ background:#c62828; }
     .stats{ margin-top:8px; font-size:13px; line-height:1.6; }
-    .thumb{
-      max-width:60px; max-height:60px; display:block;
-    }
+    .thumb{ max-width:60px; max-height:60px; display:block; }
   </style>
 </head>
 <body>
@@ -69,7 +67,7 @@
     <div class="row">
       <div>
         <button class="secondary" id="exportButton">バックアップを書き出し（JSON）</button>
-        <div class="small">iPhoneでは「ファイル」に保存できます。</div>
+        <div class="small">iPhone・Androidでは「ファイル」に保存できます。</div>
       </div>
       <div>
         <label for="importFile">バックアップを読み込む（JSON）</label>
@@ -80,31 +78,11 @@
 
     <div class="hint">
       復元をすると、今のデータは上書きされます。復元前に、必ず書き出し（バックアップ）を取ってください。<br>
-      iPhoneで「Safariの履歴とWebサイトデータを消去」などを行うと、このアプリの記録が消える可能性があります。
+      ブラウザの「履歴とWebサイトデータの削除」などを行うと、このアプリの記録が消える可能性があります。
     </div>
   </section>
 
   <div class="grid">
-    <section class="section">
-      <h2>デッキ管理</h2>
-
-      <h3>デッキを追加</h3>
-      <label for="deckName">デッキ名</label>
-      <input type="text" id="deckName" placeholder="例：青黒サガ" />
-
-      <label for="deckImage">デッキ画像（任意・1枚）</label>
-      <input type="file" id="deckImage" accept="image/*" />
-      <div class="small">画像はブラウザ内に保存されます。あまり大きな画像を大量に入れると保存上限に近づきます。</div>
-
-      <button id="addDeckButton">デッキを追加</button>
-
-      <h3>デッキ一覧</h3>
-      <table id="deckTable">
-        <thead><tr><th>画像</th><th>デッキ名</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
     <section class="section">
       <h2>対戦を記録</h2>
 
@@ -113,10 +91,12 @@
       <label for="matchDate">対戦日</label>
       <input type="date" id="matchDate" />
 
-      <label for="matchDeckSelect">使用デッキ</label>
-      <select id="matchDeckSelect">
-        <option value="">デッキを選択</option>
-      </select>
+      <label for="matchDeckName">使用デッキ名</label>
+      <input type="text" id="matchDeckName" placeholder="例：青黒サガ" />
+
+      <label for="matchDeckImage">デッキ画像（任意・1枚）</label>
+      <input type="file" id="matchDeckImage" accept="image/*" />
+      <div class="small">画像は対戦ごとに保存されます。あまり大きな画像を大量に入れると保存容量に近づきます。</div>
 
       <div class="row">
         <div>
@@ -157,6 +137,24 @@
 
       <button id="addMatchButton">対戦を追加</button>
     </section>
+
+    <section class="section">
+      <h2>期間での勝率集計</h2>
+
+      <label for="periodStart">開始日（対戦日）</label>
+      <input type="date" id="periodStart" />
+
+      <label for="periodEnd">終了日（対戦日）</label>
+      <input type="date" id="periodEnd" />
+
+      <button id="calcPeriodButton">この期間で集計する</button>
+
+      <div class="small">
+        対戦日の範囲で集計します。開始日か終了日を空欄にすると、その側は制限なしになります。
+      </div>
+
+      <div id="periodResult" class="stats"></div>
+    </section>
   </div>
 
   <section class="section">
@@ -167,90 +165,145 @@
     <table id="matchTable">
       <thead>
         <tr>
-          <th>対戦日</th><th>R</th><th>使用デッキ</th><th>先手／後手</th><th>勝敗</th>
-          <th>スコア</th><th>相手デッキ</th><th>メモ</th><th>記録日時</th>
+          <th>対戦日</th>
+          <th>R</th>
+          <th>デッキ画像</th>
+          <th>使用デッキ名</th>
+          <th>先手／後手</th>
+          <th>勝敗</th>
+          <th>スコア</th>
+          <th>相手デッキ</th>
+          <th>メモ</th>
+          <th>記録日時</th>
         </tr>
       </thead>
       <tbody></tbody>
     </table>
   </section>
-
-  <section class="section">
-    <h2>期間での勝率集計</h2>
-
-    <label for="periodStart">開始日（対戦日）</label>
-    <input type="date" id="periodStart" />
-
-    <label for="periodEnd">終了日（対戦日）</label>
-    <input type="date" id="periodEnd" />
-
-    <button id="calcPeriodButton">この期間で集計する</button>
-
-    <div class="small">
-      対戦日の範囲で集計します。開始日か終了日を空欄にすると、その側は制限なしになります。
-    </div>
-
-    <div id="periodResult" class="stats"></div>
-  </section>
 </main>
 
 <script>
-  const STORAGE_KEY = "dm_match_tracker_data_v4";
+  // v5: デッキ管理なし。matches だけを持つ。
+  const STORAGE_KEY = "dm_match_tracker_data_v5";
+
+  function normalizeMatchesOnly(data){
+    if(!data || typeof data !== "object"){
+      return { matches: [] };
+    }
+    if(!Array.isArray(data.matches)){
+      data.matches = [];
+    }
+    return { matches: data.matches };
+  }
+
+  // v4以前の tournaments/decks/matches から v5形式へ変換
+  function migrateFromOld(data){
+    if(!data || typeof data !== "object"){
+      return { matches: [] };
+    }
+    if(!Array.isArray(data.matches)){
+      return { matches: [] };
+    }
+
+    const tournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
+    const decks = Array.isArray(data.decks) ? data.decks : [];
+
+    const tMap = {};
+    for(const t of tournaments){
+      if(t && t.id && t.date){
+        tMap[t.id] = t.date;
+      }
+    }
+
+    const deckMap = {};
+    for(const d of decks){
+      if(d && d.id){
+        deckMap[d.id] = {
+          name: typeof d.name === "string" ? d.name : "",
+          imageDataUrl: d.imageDataUrl || null
+        };
+      }
+    }
+
+    const newMatches = [];
+    for(const m of data.matches){
+      if(!m || typeof m !== "object") continue;
+
+      let matchDate = m.matchDate || "";
+      if(!matchDate && m.tournamentId && tMap[m.tournamentId]){
+        matchDate = tMap[m.tournamentId];
+      }
+
+      let deckName = "";
+      let deckImageDataUrl = null;
+      if(m.deckId && deckMap[m.deckId]){
+        deckName = deckMap[m.deckId].name;
+        deckImageDataUrl = deckMap[m.deckId].imageDataUrl || null;
+      }
+
+      newMatches.push({
+        id: typeof m.id === "string" ? m.id : genId("match"),
+        matchDate: matchDate || "",
+        deckName: deckName || "",
+        deckImageDataUrl: deckImageDataUrl || null,
+        roundNumber: m.roundNumber || null,
+        firstOrSecond: m.firstOrSecond || "",
+        result: m.result || "",
+        score: m.score || "",
+        opponentDeckName: m.opponentDeckName || "",
+        memo: m.memo || "",
+        createdAt: m.createdAt || ""
+      });
+    }
+
+    return { matches: newMatches };
+  }
 
   function loadData(){
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw){
       try{
         const data = JSON.parse(raw);
-        normalizeData(data);
-        return data;
+        return normalizeMatchesOnly(data);
       }catch{
-        return { tournaments: [], decks: [], matches: [] };
+        return { matches: [] };
       }
     }
-    // v3 以前からの移行用（キー名が違う場合）
-    const oldRaw = localStorage.getItem("dm_match_tracker_data_v3");
+
+    // v4 → v5 自動移行
+    const oldRaw = localStorage.getItem("dm_match_tracker_data_v4");
     if(oldRaw){
       try{
-        const data = JSON.parse(oldRaw);
-        normalizeData(data);
-        migrateMatchDateFromTournament(data);
-        return data;
+        const oldData = JSON.parse(oldRaw);
+        const migrated = migrateFromOld(oldData);
+        saveData(migrated);
+        return migrated;
       }catch{
-        return { tournaments: [], decks: [], matches: [] };
+        return { matches: [] };
       }
     }
-    return { tournaments: [], decks: [], matches: [] };
-  }
 
-  function normalizeData(data){
-    if(!data || typeof data !== "object"){
-      data.tournaments = []; data.decks = []; data.matches = [];
-      return;
-    }
-    if(!Array.isArray(data.tournaments)) data.tournaments = [];
-    if(!Array.isArray(data.decks)) data.decks = [];
-    if(!Array.isArray(data.matches)) data.matches = [];
-  }
-
-  // 古いデータで match.matchDate がない場合に、大会の日付をコピー
-  function migrateMatchDateFromTournament(data){
-    const tMap = {};
-    for(const t of data.tournaments || []){
-      if(t && t.id && t.date) tMap[t.id] = t.date;
-    }
-    for(const m of data.matches || []){
-      if(!m.matchDate && m.tournamentId && tMap[m.tournamentId]){
-        m.matchDate = tMap[m.tournamentId];
+    // v3 → v5（古いキーが残っている場合の保険）
+    const olderRaw = localStorage.getItem("dm_match_tracker_data_v3");
+    if(olderRaw){
+      try{
+        const olderData = JSON.parse(olderRaw);
+        const migrated = migrateFromOld(olderData);
+        saveData(migrated);
+        return migrated;
+      }catch{
+        return { matches: [] };
       }
     }
+
+    return { matches: [] };
   }
 
   function saveData(data){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }
 
-  function id(prefix){
+  function genId(prefix){
     return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
   }
 
@@ -268,7 +321,7 @@
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth()+1).padStart(2,"0");
     const dd = String(d.getDate()).padStart(2,"0");
-    const hh = String(d.getHours()).padStart(2,"0");
+    const hh = String(d.getHours()+0).padStart(2,"0");
     const mi = String(d.getMinutes()).padStart(2,"0");
     return `${yyyy}-${mm}-${dd}_${hh}${mi}`;
   }
@@ -278,7 +331,7 @@
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth()+1).padStart(2,"0");
     const dd = String(d.getDate()).padStart(2,"0");
-    const hh = String(d.getHours()).padStart(2,"0");
+    const hh = String(d.getHours()+0).padStart(2,"0");
     const mi = String(d.getMinutes()).padStart(2,"0");
     return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
   }
@@ -293,51 +346,30 @@
 
   function validateImportedData(data){
     if(!data || typeof data !== "object") return "JSONの中身が不正です。";
-    if(!Array.isArray(data.decks) || !Array.isArray(data.matches)){
-      return "decks / matches の形式が不正です。";
+
+    // v5形式（matchesのみ）
+    if(Array.isArray(data.matches) && !Array.isArray(data.decks) && !Array.isArray(data.tournaments)){
+      for(const m of data.matches){
+        if(!m || typeof m !== "object") return "対戦データが不正です。";
+      }
+      return null;
     }
-    for(const d of data.decks){
-      if(!d || typeof d !== "object") return "デッキデータが不正です。";
-      if(typeof d.id !== "string" || typeof d.name !== "string") return "デッキのid/nameが不正です。";
+
+    // v3/v4形式（tournaments/decks/matches）
+    if(Array.isArray(data.matches) && Array.isArray(data.decks)){
+      for(const d of data.decks){
+        if(!d || typeof d !== "object") return "デッキデータが不正です。";
+      }
+      for(const m of data.matches){
+        if(!m || typeof m !== "object") return "対戦データが不正です。";
+      }
+      return null;
     }
-    for(const m of data.matches){
-      if(!m || typeof m !== "object") return "対戦データが不正です。";
-      if(typeof m.id !== "string" || typeof m.deckId !== "string") return "対戦のid/deckIdが不正です。";
-    }
-    return null;
+
+    return "形式が対応外です。";
   }
 
   let appData = loadData();
-
-  function renderDecks(){
-    const tbody = document.querySelector("#deckTable tbody");
-    tbody.innerHTML = "";
-    for(const d of appData.decks){
-      const tr = document.createElement("tr");
-      const imgTd = document.createElement("td");
-      if(d.imageDataUrl){
-        const img = document.createElement("img");
-        img.src = d.imageDataUrl;
-        img.alt = d.name;
-        img.className = "thumb";
-        imgTd.appendChild(img);
-      }
-      const nameTd = document.createElement("td");
-      nameTd.textContent = d.name;
-      tr.appendChild(imgTd);
-      tr.appendChild(nameTd);
-      tbody.appendChild(tr);
-    }
-
-    const sel = document.getElementById("matchDeckSelect");
-    sel.innerHTML = `<option value="">デッキを選択</option>`;
-    for(const d of appData.decks){
-      const opt = document.createElement("option");
-      opt.value = d.id;
-      opt.textContent = d.name;
-      sel.appendChild(opt);
-    }
-  }
 
   function overallStats(){
     let total = 0, win = 0, lose = 0;
@@ -351,7 +383,7 @@
 
   function percent(win, total){
     if(!total) return null;
-    return Math.round((win / total) * 1000) / 10; // 小数1桁
+    return Math.round((win / total) * 1000) / 10;
   }
 
   function renderMatches(){
@@ -368,23 +400,58 @@
     });
 
     for(const m of list){
-      const deck = appData.decks.find(d => d.id === m.deckId);
       const resultHtml = m.result === "勝ち"
         ? `<span class="badge win">勝ち</span>`
         : (m.result === "負け" ? `<span class="badge lose">負け</span>` : "");
 
       const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(m.matchDate || "")}</td>
-        <td>${escapeHtml(m.roundNumber || "")}</td>
-        <td>${escapeHtml(deck ? deck.name : "")}</td>
-        <td>${escapeHtml(m.firstOrSecond || "")}</td>
-        <td>${resultHtml}</td>
-        <td>${escapeHtml(m.score || "")}</td>
-        <td>${escapeHtml(m.opponentDeckName || "")}</td>
-        <td>${escapeHtml(m.memo || "")}</td>
-        <td>${escapeHtml(m.createdAt || "")}</td>
-      `;
+
+      const tdDate = document.createElement("td");
+      tdDate.textContent = m.matchDate || "";
+      tr.appendChild(tdDate);
+
+      const tdRound = document.createElement("td");
+      tdRound.textContent = m.roundNumber != null ? String(m.roundNumber) : "";
+      tr.appendChild(tdRound);
+
+      const tdImg = document.createElement("td");
+      if(m.deckImageDataUrl){
+        const img = document.createElement("img");
+        img.src = m.deckImageDataUrl;
+        img.alt = m.deckName || "";
+        img.className = "thumb";
+        tdImg.appendChild(img);
+      }
+      tr.appendChild(tdImg);
+
+      const tdDeck = document.createElement("td");
+      tdDeck.textContent = m.deckName || "";
+      tr.appendChild(tdDeck);
+
+      const tdFS = document.createElement("td");
+      tdFS.textContent = m.firstOrSecond || "";
+      tr.appendChild(tdFS);
+
+      const tdResult = document.createElement("td");
+      tdResult.innerHTML = resultHtml;
+      tr.appendChild(tdResult);
+
+      const tdScore = document.createElement("td");
+      tdScore.textContent = m.score || "";
+      tr.appendChild(tdScore);
+
+      const tdOpp = document.createElement("td");
+      tdOpp.textContent = m.opponentDeckName || "";
+      tr.appendChild(tdOpp);
+
+      const tdMemo = document.createElement("td");
+      tdMemo.textContent = m.memo || "";
+      tr.appendChild(tdMemo);
+
+      const tdCreated = document.createElement("td");
+      tdCreated.textContent = m.createdAt || "";
+      tr.appendChild(tdCreated);
+
       tbody.appendChild(tr);
     }
 
@@ -432,42 +499,11 @@
     return { total, win, lose, firstTotal, firstWin, secondTotal, secondWin };
   }
 
-  document.getElementById("addDeckButton").addEventListener("click", () => {
-    const name = document.getElementById("deckName").value.trim();
-    const fileInput = document.getElementById("deckImage");
-    const file = fileInput.files && fileInput.files[0];
-
-    if(!name){
-      alert("デッキ名を入力してください。");
-      return;
-    }
-
-    function addDeck(imageDataUrl){
-      appData.decks.push({
-        id: id("deck"),
-        name,
-        imageDataUrl: imageDataUrl || null
-      });
-      saveData(appData);
-      renderDecks();
-      document.getElementById("deckName").value = "";
-      fileInput.value = "";
-    }
-
-    if(file){
-      const reader = new FileReader();
-      reader.onload = () => {
-        addDeck(String(reader.result || ""));
-      };
-      reader.readAsDataURL(file);
-    }else{
-      addDeck(null);
-    }
-  });
-
   document.getElementById("addMatchButton").addEventListener("click", () => {
     let matchDate = document.getElementById("matchDate").value;
-    const deckId = document.getElementById("matchDeckSelect").value;
+    const deckName = document.getElementById("matchDeckName").value.trim();
+    const fileInput = document.getElementById("matchDeckImage");
+    const file = fileInput.files && fileInput.files[0];
     const roundStr = document.getElementById("matchRound").value;
     const firstOrSecond = document.getElementById("matchFirstSecond").value;
     const result = document.getElementById("matchResult").value;
@@ -476,10 +512,10 @@
     const memo = document.getElementById("matchMemo").value.trim();
 
     if(!matchDate){
-      matchDate = todayDate(); // 未入力なら今日の日付を自動で付ける
+      matchDate = todayDate();
     }
-    if(!deckId){
-      alert("使用デッキを選択してください。");
+    if(!deckName){
+      alert("使用デッキ名を入力してください。");
       return;
     }
 
@@ -497,45 +533,57 @@
       return;
     }
 
-    appData.matches.push({
-      id: id("match"),
-      deckId,
-      matchDate,
-      roundNumber,
-      firstOrSecond,
-      result,
-      score,
-      opponentDeckName,
-      memo,
-      createdAt: createdAtString()
-    });
+    function addMatch(deckImageDataUrl){
+      appData.matches.push({
+        id: genId("match"),
+        matchDate,
+        deckName,
+        deckImageDataUrl: deckImageDataUrl || null,
+        roundNumber,
+        firstOrSecond,
+        result,
+        score,
+        opponentDeckName,
+        memo,
+        createdAt: createdAtString()
+      });
+      saveData(appData);
+      renderMatches();
 
-    saveData(appData);
-    renderMatches();
+      document.getElementById("matchDeckName").value = "";
+      document.getElementById("matchRound").value = "";
+      document.getElementById("matchFirstSecond").value = "";
+      document.getElementById("matchResult").value = "";
+      document.getElementById("matchScore").value = "";
+      document.getElementById("matchOpponentDeck").value = "";
+      document.getElementById("matchMemo").value = "";
+      fileInput.value = "";
+    }
 
-    document.getElementById("matchRound").value = "";
-    document.getElementById("matchFirstSecond").value = "";
-    document.getElementById("matchResult").value = "";
-    document.getElementById("matchScore").value = "";
-    document.getElementById("matchOpponentDeck").value = "";
-    document.getElementById("matchMemo").value = "";
+    if(file){
+      const reader = new FileReader();
+      reader.onload = () => {
+        addMatch(String(reader.result || ""));
+      };
+      reader.readAsDataURL(file);
+    }else{
+      addMatch(null);
+    }
   });
 
   document.getElementById("resetDataButton").addEventListener("click", () => {
-    const ok = confirm("保存しているデッキ・対戦のデータをすべて削除します。よろしいですか？");
+    const ok = confirm("保存している対戦データをすべて削除します。よろしいですか？");
     if(!ok) return;
-    appData = { tournaments: [], decks: [], matches: [] };
+    appData = { matches: [] };
     saveData(appData);
-    renderDecks();
     renderMatches();
     document.getElementById("periodResult").textContent = "";
   });
 
   document.getElementById("exportButton").addEventListener("click", () => {
     const payload = {
-      version: 4,
+      version: 5,
       exportedAt: new Date().toISOString(),
-      decks: appData.decks,
       matches: appData.matches
     };
     const json = JSON.stringify(payload, null, 2);
@@ -563,27 +611,24 @@
     reader.onload = () => {
       try{
         const data = JSON.parse(String(reader.result || ""));
-        // v3 以前の形式でも受け取れるように補正
-        if(!Array.isArray(data.decks) && Array.isArray(data.tournaments)){
-          normalizeData(data);
-          migrateMatchDateFromTournament(data);
-        }
         const err = validateImportedData(data);
         if(err){
           alert("復元できません：" + err);
           return;
         }
 
+        let converted;
+        if(Array.isArray(data.matches) && !Array.isArray(data.decks) && !Array.isArray(data.tournaments)){
+          converted = normalizeMatchesOnly(data);
+        }else{
+          converted = migrateFromOld(data);
+        }
+
         const ok = confirm("復元を実行します。今のデータは上書きされます。よろしいですか？");
         if(!ok) return;
 
-        appData = {
-          tournaments: data.tournaments || [],
-          decks: data.decks,
-          matches: data.matches
-        };
+        appData = converted;
         saveData(appData);
-        renderDecks();
         renderMatches();
         document.getElementById("periodResult").textContent = "";
         fileInput.value = "";
@@ -632,7 +677,6 @@
 
   function init(){
     document.getElementById("matchDate").value = todayDate();
-    renderDecks();
     renderMatches();
   }
   init();
