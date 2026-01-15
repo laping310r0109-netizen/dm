@@ -21,6 +21,7 @@
     }
     h2{ margin:0 0 8px 0; font-size:16px; border-left:4px solid #333; padding-left:8px; }
     h3{ margin:12px 0 6px 0; font-size:14px; }
+    h4{ margin:8px 0 4px 0; font-size:13px; }
     label{ display:block; margin-top:8px; margin-bottom:4px; }
     input[type="text"], input[type="date"], input[type="number"], select, textarea{
       width:100%; box-sizing:border-box; border:1px solid #ccc; border-radius:4px;
@@ -39,9 +40,9 @@
     .grid .section{ flex:1 1 320px; }
     .row{ display:flex; gap:12px; flex-wrap:wrap; }
     .row > div{ flex:1 1 160px; }
-    table{ width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
-    th, td{ border:1px solid #ddd; padding:6px 8px; text-align:left; vertical-align:top; word-break:break-word; }
-    th{ background:#f0f0f0; }
+    table{ width:100%; border-collapse:collapse; font-size:13px; }
+    th, td{ border:1px solid #ddd; padding:4px 6px; text-align:left; vertical-align:top; word-break:break-word; }
+    th{ background:#f0f0f0; width:80px; }
     .small{ font-size:12px; color:#666; line-height:1.55; }
     .hint{
       margin-top:10px; padding:10px 12px; border-radius:6px;
@@ -52,6 +53,48 @@
     .lose{ background:#c62828; }
     .stats{ margin-top:8px; font-size:13px; line-height:1.6; }
     .thumb{ max-width:60px; max-height:60px; display:block; }
+    .match-date-group{
+      margin-bottom:12px;
+      border-top:2px solid #ccc;
+      padding-top:8px;
+    }
+    .match-date-title{
+      font-weight:bold;
+      margin-bottom:4px;
+    }
+    .match-stage-group{
+      margin-left:4px;
+      margin-bottom:8px;
+    }
+    .match-card{
+      border:1px solid #ddd;
+      border-radius:6px;
+      padding:8px;
+      margin-bottom:6px;
+      background:#fafafa;
+    }
+    .match-card-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      margin-bottom:4px;
+      font-size:13px;
+      font-weight:bold;
+    }
+    .match-card-header span{
+      flex:1 1 auto;
+    }
+    .match-card table{
+      width:100%;
+      margin-top:2px;
+    }
+    #currentDeckImageInfo{
+      margin-top:4px;
+    }
+    #currentDeckImageInfo img{
+      margin-top:4px;
+    }
   </style>
 </head>
 <body>
@@ -86,22 +129,33 @@
     <section class="section">
       <h2>対戦を記録</h2>
 
-      <h3>対戦を追加</h3>
+      <h3>対戦を追加 / 編集</h3>
 
       <label for="matchDate">対戦日</label>
       <input type="date" id="matchDate" />
+
+      <label for="matchStage">ステージ</label>
+      <select id="matchStage">
+        <option value="予選">予選</option>
+        <option value="本戦">本戦</option>
+      </select>
 
       <label for="matchDeckName">使用デッキ名</label>
       <input type="text" id="matchDeckName" placeholder="例：青黒サガ" />
 
       <label for="matchDeckImage">デッキ画像（任意・1枚）</label>
       <input type="file" id="matchDeckImage" accept="image/*" />
-      <div class="small">画像は対戦ごとに保存されます。あまり大きな画像を大量に入れると保存容量に近づきます。</div>
+      <div class="small">画像は対戦ごとに保存されます。画像を変更しない場合はそのままでかまいません。</div>
+      <div id="currentDeckImageInfo" class="small" style="display:none;">
+        現在のデッキ画像:
+        <br>
+        <img id="currentDeckImagePreview" class="thumb" alt="deck image preview">
+      </div>
 
       <div class="row">
         <div>
-          <label for="matchRound">ラウンド（第何回戦）</label>
-          <input type="number" id="matchRound" min="1" placeholder="例：1" />
+          <label for="matchRound">ラウンド（空なら自動で1,2,…）</label>
+          <input type="number" id="matchRound" min="1" placeholder="空のままでOK" />
         </div>
         <div>
           <label for="matchFirstSecond">先手／後手</label>
@@ -123,10 +177,6 @@
 
       <div class="row">
         <div>
-          <label for="matchScore">マッチスコア（任意）</label>
-          <input type="text" id="matchScore" placeholder="例：2-1" />
-        </div>
-        <div>
           <label for="matchOpponentDeck">相手デッキ名（任意）</label>
           <input type="text" id="matchOpponentDeck" placeholder="例：赤青マジック" />
         </div>
@@ -135,7 +185,15 @@
       <label for="matchMemo">メモ（任意）</label>
       <textarea id="matchMemo" placeholder="プレイの反省点など"></textarea>
 
-      <button id="addMatchButton">対戦を追加</button>
+      <div class="row" style="margin-top:8px;">
+        <div>
+          <button id="addMatchButton">対戦を追加</button>
+        </div>
+        <div>
+          <button id="cancelEditButton" class="secondary" style="display:none;">編集をキャンセル</button>
+        </div>
+      </div>
+      <div id="editStatus" class="small"></div>
     </section>
 
     <section class="section">
@@ -158,33 +216,17 @@
   </div>
 
   <section class="section">
-    <h2>対戦一覧</h2>
+    <h2>対戦一覧（大会＝対戦日ごと、予選・本戦まとめ）</h2>
 
     <div class="stats" id="overallStats"></div>
 
-    <table id="matchTable">
-      <thead>
-        <tr>
-          <th>対戦日</th>
-          <th>R</th>
-          <th>デッキ画像</th>
-          <th>使用デッキ名</th>
-          <th>先手／後手</th>
-          <th>勝敗</th>
-          <th>スコア</th>
-          <th>相手デッキ</th>
-          <th>メモ</th>
-          <th>記録日時</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    <div id="matchList"></div>
   </section>
 </main>
 
 <script>
-  // v5: デッキ管理なし。matches だけを持つ。
-  const STORAGE_KEY = "dm_match_tracker_data_v5";
+  // v7: matches のみ。ステージ（予選／本戦）、ラウンド自動採番、編集機能。
+  const STORAGE_KEY = "dm_match_tracker_data_v7";
 
   function normalizeMatchesOnly(data){
     if(!data || typeof data !== "object"){
@@ -193,10 +235,13 @@
     if(!Array.isArray(data.matches)){
       data.matches = [];
     }
+    for(const m of data.matches){
+      if(!m.stage) m.stage = "予選";
+    }
     return { matches: data.matches };
   }
 
-  // v4以前の tournaments/decks/matches から v5形式へ変換
+  // v4/v5/v6 以前の tournaments/decks/matches から v7形式へ変換
   function migrateFromOld(data){
     if(!data || typeof data !== "object"){
       return { matches: [] };
@@ -244,12 +289,12 @@
       newMatches.push({
         id: typeof m.id === "string" ? m.id : genId("match"),
         matchDate: matchDate || "",
-        deckName: deckName || "",
-        deckImageDataUrl: deckImageDataUrl || null,
+        stage: m.stage || "予選",
+        deckName: m.deckName || deckName || "",
+        deckImageDataUrl: m.deckImageDataUrl || deckImageDataUrl || null,
         roundNumber: m.roundNumber || null,
         firstOrSecond: m.firstOrSecond || "",
         result: m.result || "",
-        score: m.score || "",
         opponentDeckName: m.opponentDeckName || "",
         memo: m.memo || "",
         createdAt: m.createdAt || ""
@@ -270,12 +315,11 @@
       }
     }
 
-    // v4 → v5 自動移行
-    const oldRaw = localStorage.getItem("dm_match_tracker_data_v4");
-    if(oldRaw){
+    const v6raw = localStorage.getItem("dm_match_tracker_data_v6");
+    if(v6raw){
       try{
-        const oldData = JSON.parse(oldRaw);
-        const migrated = migrateFromOld(oldData);
+        const v6 = JSON.parse(v6raw);
+        const migrated = normalizeMatchesOnly(v6);
         saveData(migrated);
         return migrated;
       }catch{
@@ -283,12 +327,35 @@
       }
     }
 
-    // v3 → v5（古いキーが残っている場合の保険）
-    const olderRaw = localStorage.getItem("dm_match_tracker_data_v3");
-    if(olderRaw){
+    const v5raw = localStorage.getItem("dm_match_tracker_data_v5");
+    if(v5raw){
       try{
-        const olderData = JSON.parse(olderRaw);
-        const migrated = migrateFromOld(olderData);
+        const v5 = JSON.parse(v5raw);
+        const migrated = migrateFromOld(v5);
+        saveData(migrated);
+        return migrated;
+      }catch{
+        return { matches: [] };
+      }
+    }
+
+    const v4raw = localStorage.getItem("dm_match_tracker_data_v4");
+    if(v4raw){
+      try{
+        const v4 = JSON.parse(v4raw);
+        const migrated = migrateFromOld(v4);
+        saveData(migrated);
+        return migrated;
+      }catch{
+        return { matches: [] };
+      }
+    }
+
+    const v3raw = localStorage.getItem("dm_match_tracker_data_v3");
+    if(v3raw){
+      try{
+        const v3 = JSON.parse(v3raw);
+        const migrated = migrateFromOld(v3);
         saveData(migrated);
         return migrated;
       }catch{
@@ -322,7 +389,7 @@
     const mm = String(d.getMonth()+1).padStart(2,"0");
     const dd = String(d.getDate()).padStart(2,"0");
     const hh = String(d.getHours()+0).padStart(2,"0");
-    const mi = String(d.getMinutes()).padStart(2,"0");
+    const mi = String(d.getMinutes()+0).padStart(2,"0");
     return `${yyyy}-${mm}-${dd}_${hh}${mi}`;
   }
 
@@ -332,7 +399,7 @@
     const mm = String(d.getMonth()+1).padStart(2,"0");
     const dd = String(d.getDate()).padStart(2,"0");
     const hh = String(d.getHours()+0).padStart(2,"0");
-    const mi = String(d.getMinutes()).padStart(2,"0");
+    const mi = String(d.getMinutes()+0).padStart(2,"0");
     return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
   }
 
@@ -347,7 +414,6 @@
   function validateImportedData(data){
     if(!data || typeof data !== "object") return "JSONの中身が不正です。";
 
-    // v5形式（matchesのみ）
     if(Array.isArray(data.matches) && !Array.isArray(data.decks) && !Array.isArray(data.tournaments)){
       for(const m of data.matches){
         if(!m || typeof m !== "object") return "対戦データが不正です。";
@@ -355,14 +421,7 @@
       return null;
     }
 
-    // v3/v4形式（tournaments/decks/matches）
-    if(Array.isArray(data.matches) && Array.isArray(data.decks)){
-      for(const d of data.decks){
-        if(!d || typeof d !== "object") return "デッキデータが不正です。";
-      }
-      for(const m of data.matches){
-        if(!m || typeof m !== "object") return "対戦データが不正です。";
-      }
+    if(Array.isArray(data.matches) && (Array.isArray(data.decks) || Array.isArray(data.tournaments))){
       return null;
     }
 
@@ -370,6 +429,7 @@
   }
 
   let appData = loadData();
+  let editingMatchId = null;
 
   function overallStats(){
     let total = 0, win = 0, lose = 0;
@@ -386,74 +446,38 @@
     return Math.round((win / total) * 1000) / 10;
   }
 
+  function nextRoundNumber(matchDate, stage){
+    let max = 0;
+    for(const m of appData.matches){
+      const st = m.stage || "予選";
+      if(m.matchDate === matchDate && st === stage){
+        const r = m.roundNumber || 0;
+        if(r > max) max = r;
+      }
+    }
+    return max + 1;
+  }
+
   function renderMatches(){
-    const tbody = document.querySelector("#matchTable tbody");
-    tbody.innerHTML = "";
+    const container = document.getElementById("matchList");
+    container.innerHTML = "";
 
     const list = [...appData.matches].sort((a,b) => {
       const da = a.matchDate || "";
       const db = b.matchDate || "";
       if(da === db){
-        return (a.roundNumber || 0) - (b.roundNumber || 0);
+        const sa = a.stage || "予選";
+        const sb = b.stage || "予選";
+        if(sa === sb){
+          return (a.roundNumber || 0) - (b.roundNumber || 0);
+        }
+        const order = { "予選": 1, "本戦": 2 };
+        const oa = order[sa] || 99;
+        const ob = order[sb] || 99;
+        return oa - ob;
       }
       return da < db ? -1 : 1;
     });
-
-    for(const m of list){
-      const resultHtml = m.result === "勝ち"
-        ? `<span class="badge win">勝ち</span>`
-        : (m.result === "負け" ? `<span class="badge lose">負け</span>` : "");
-
-      const tr = document.createElement("tr");
-
-      const tdDate = document.createElement("td");
-      tdDate.textContent = m.matchDate || "";
-      tr.appendChild(tdDate);
-
-      const tdRound = document.createElement("td");
-      tdRound.textContent = m.roundNumber != null ? String(m.roundNumber) : "";
-      tr.appendChild(tdRound);
-
-      const tdImg = document.createElement("td");
-      if(m.deckImageDataUrl){
-        const img = document.createElement("img");
-        img.src = m.deckImageDataUrl;
-        img.alt = m.deckName || "";
-        img.className = "thumb";
-        tdImg.appendChild(img);
-      }
-      tr.appendChild(tdImg);
-
-      const tdDeck = document.createElement("td");
-      tdDeck.textContent = m.deckName || "";
-      tr.appendChild(tdDeck);
-
-      const tdFS = document.createElement("td");
-      tdFS.textContent = m.firstOrSecond || "";
-      tr.appendChild(tdFS);
-
-      const tdResult = document.createElement("td");
-      tdResult.innerHTML = resultHtml;
-      tr.appendChild(tdResult);
-
-      const tdScore = document.createElement("td");
-      tdScore.textContent = m.score || "";
-      tr.appendChild(tdScore);
-
-      const tdOpp = document.createElement("td");
-      tdOpp.textContent = m.opponentDeckName || "";
-      tr.appendChild(tdOpp);
-
-      const tdMemo = document.createElement("td");
-      tdMemo.textContent = m.memo || "";
-      tr.appendChild(tdMemo);
-
-      const tdCreated = document.createElement("td");
-      tdCreated.textContent = m.createdAt || "";
-      tr.appendChild(tdCreated);
-
-      tbody.appendChild(tr);
-    }
 
     const s = overallStats();
     const rate = percent(s.win, s.total);
@@ -465,6 +489,163 @@
         `全対戦数: ${s.total}　勝ち: ${s.win}　負け: ${s.lose}` +
         (rate != null ? `　勝率: ${rate}%` : "");
     }
+
+    if(list.length === 0){
+      return;
+    }
+
+    const byDate = {};
+    for(const m of list){
+      const d = m.matchDate || "日付未設定";
+      if(!byDate[d]) byDate[d] = [];
+      byDate[d].push(m);
+    }
+
+    const dates = Object.keys(byDate).sort((a,b) => {
+      if(a === "日付未設定") return -1;
+      if(b === "日付未設定") return 1;
+      return a < b ? -1 : 1;
+    });
+
+    for(const date of dates){
+      const dateGroupDiv = document.createElement("div");
+      dateGroupDiv.className = "match-date-group";
+
+      const titleDiv = document.createElement("div");
+      titleDiv.className = "match-date-title";
+      titleDiv.textContent = date === "日付未設定" ? "日付未設定（大会日未入力）" : `大会日: ${date}`;
+      dateGroupDiv.appendChild(titleDiv);
+
+      const matchesForDate = byDate[date];
+
+      const stages = ["予選", "本戦"];
+      for(const stage of stages){
+        const msStage = matchesForDate.filter(m => (m.stage || "予選") === stage);
+        if(msStage.length === 0) continue;
+
+        const stageDiv = document.createElement("div");
+        stageDiv.className = "match-stage-group";
+
+        const stageTitle = document.createElement("h4");
+        stageTitle.textContent = stage;
+        stageDiv.appendChild(stageTitle);
+
+        for(const m of msStage){
+          const card = document.createElement("div");
+          card.className = "match-card";
+          card.dataset.id = m.id;
+
+          const header = document.createElement("div");
+          header.className = "match-card-header";
+          const infoSpan = document.createElement("span");
+          const rText = m.roundNumber != null ? `R${m.roundNumber}` : "R-";
+          infoSpan.textContent = `${rText}　${m.deckName || ""}`;
+          const editBtn = document.createElement("button");
+          editBtn.textContent = "編集";
+          editBtn.className = "secondary match-edit-btn";
+          editBtn.dataset.id = m.id;
+          header.appendChild(infoSpan);
+          header.appendChild(editBtn);
+          card.appendChild(header);
+
+          const table = document.createElement("table");
+          const tbody = document.createElement("tbody");
+
+          const rowDeckImg = document.createElement("tr");
+          const thDeckImg = document.createElement("th");
+          thDeckImg.textContent = "デッキ画像";
+          const tdDeckImg = document.createElement("td");
+          if(m.deckImageDataUrl){
+            const img = document.createElement("img");
+            img.src = m.deckImageDataUrl;
+            img.alt = m.deckName || "";
+            img.className = "thumb";
+            tdDeckImg.appendChild(img);
+          }else{
+            tdDeckImg.textContent = "";
+          }
+          rowDeckImg.appendChild(thDeckImg);
+          rowDeckImg.appendChild(tdDeckImg);
+          tbody.appendChild(rowDeckImg);
+
+          const rowDeck = document.createElement("tr");
+          const thDeck = document.createElement("th");
+          thDeck.textContent = "使用デッキ";
+          const tdDeck = document.createElement("td");
+          tdDeck.textContent = m.deckName || "";
+          rowDeck.appendChild(thDeck);
+          rowDeck.appendChild(tdDeck);
+          tbody.appendChild(rowDeck);
+
+          const rowFS = document.createElement("tr");
+          const thFS = document.createElement("th");
+          thFS.textContent = "先手／後手";
+          const tdFS = document.createElement("td");
+          tdFS.textContent = m.firstOrSecond || "";
+          rowFS.appendChild(thFS);
+          rowFS.appendChild(tdFS);
+          tbody.appendChild(rowFS);
+
+          const rowResult = document.createElement("tr");
+          const thResult = document.createElement("th");
+          thResult.textContent = "勝敗";
+          const tdResult = document.createElement("td");
+          if(m.result === "勝ち"){
+            tdResult.innerHTML = `<span class="badge win">勝ち</span>`;
+          }else if(m.result === "負け"){
+            tdResult.innerHTML = `<span class="badge lose">負け</span>`;
+          }else{
+            tdResult.textContent = "";
+          }
+          rowResult.appendChild(thResult);
+          rowResult.appendChild(tdResult);
+          tbody.appendChild(rowResult);
+
+          const rowOpp = document.createElement("tr");
+          const thOpp = document.createElement("th");
+          thOpp.textContent = "相手デッキ";
+          const tdOpp = document.createElement("td");
+          tdOpp.textContent = m.opponentDeckName || "";
+          rowOpp.appendChild(thOpp);
+          rowOpp.appendChild(tdOpp);
+          tbody.appendChild(rowOpp);
+
+          const rowMemo = document.createElement("tr");
+          const thMemo = document.createElement("th");
+          thMemo.textContent = "メモ";
+          const tdMemo = document.createElement("td");
+          tdMemo.textContent = m.memo || "";
+          rowMemo.appendChild(thMemo);
+          rowMemo.appendChild(tdMemo);
+          tbody.appendChild(rowMemo);
+
+          const rowCreated = document.createElement("tr");
+          const thCreated = document.createElement("th");
+          thCreated.textContent = "記録日時";
+          const tdCreated = document.createElement("td");
+          tdCreated.textContent = m.createdAt || "";
+          rowCreated.appendChild(thCreated);
+          rowCreated.appendChild(tdCreated);
+          tbody.appendChild(rowCreated);
+
+          table.appendChild(tbody);
+          card.appendChild(table);
+          stageDiv.appendChild(card);
+        }
+
+        dateGroupDiv.appendChild(stageDiv);
+      }
+
+      container.appendChild(dateGroupDiv);
+    }
+
+    document.querySelectorAll(".match-edit-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.id;
+        const m = appData.matches.find(x => x.id === id);
+        if(m) startEdit(m);
+      });
+    });
   }
 
   function calcPeriodStats(startDate, endDate){
@@ -499,15 +680,66 @@
     return { total, win, lose, firstTotal, firstWin, secondTotal, secondWin };
   }
 
+  function fillFormForEdit(m){
+    document.getElementById("matchDate").value = m.matchDate || todayDate();
+    document.getElementById("matchStage").value = m.stage || "予選";
+    document.getElementById("matchDeckName").value = m.deckName || "";
+    document.getElementById("matchRound").value = m.roundNumber != null ? String(m.roundNumber) : "";
+    document.getElementById("matchFirstSecond").value = m.firstOrSecond || "";
+    document.getElementById("matchResult").value = m.result || "";
+    document.getElementById("matchOpponentDeck").value = m.opponentDeckName || "";
+    document.getElementById("matchMemo").value = m.memo || "";
+    document.getElementById("matchDeckImage").value = "";
+
+    const infoDiv = document.getElementById("currentDeckImageInfo");
+    const img = document.getElementById("currentDeckImagePreview");
+    if(m.deckImageDataUrl){
+      infoDiv.style.display = "block";
+      img.src = m.deckImageDataUrl;
+    }else{
+      infoDiv.style.display = "none";
+      img.src = "";
+    }
+  }
+
+  function clearFormAndEditState(){
+    editingMatchId = null;
+    document.getElementById("matchDate").value = todayDate();
+    document.getElementById("matchStage").value = "予選";
+    document.getElementById("matchDeckName").value = "";
+    document.getElementById("matchDeckImage").value = "";
+    document.getElementById("matchRound").value = "";
+    document.getElementById("matchFirstSecond").value = "";
+    document.getElementById("matchResult").value = "";
+    document.getElementById("matchOpponentDeck").value = "";
+    document.getElementById("matchMemo").value = "";
+    document.getElementById("currentDeckImageInfo").style.display = "none";
+    document.getElementById("currentDeckImagePreview").src = "";
+    document.getElementById("addMatchButton").textContent = "対戦を追加";
+    document.getElementById("cancelEditButton").style.display = "none";
+    document.getElementById("editStatus").textContent = "";
+  }
+
+  function startEdit(m){
+    editingMatchId = m.id;
+    fillFormForEdit(m);
+    document.getElementById("addMatchButton").textContent = "対戦を更新";
+    document.getElementById("cancelEditButton").style.display = "inline-block";
+    const rText = m.roundNumber != null ? `R${m.roundNumber}` : "R-";
+    document.getElementById("editStatus").textContent =
+      `編集中: ${m.matchDate || ""} ${m.stage || "予選"} ${rText} ${m.deckName || ""}`;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   document.getElementById("addMatchButton").addEventListener("click", () => {
     let matchDate = document.getElementById("matchDate").value;
+    const stage = document.getElementById("matchStage").value || "予選";
     const deckName = document.getElementById("matchDeckName").value.trim();
     const fileInput = document.getElementById("matchDeckImage");
     const file = fileInput.files && fileInput.files[0];
     const roundStr = document.getElementById("matchRound").value;
     const firstOrSecond = document.getElementById("matchFirstSecond").value;
     const result = document.getElementById("matchResult").value;
-    const score = document.getElementById("matchScore").value.trim();
     const opponentDeckName = document.getElementById("matchOpponentDeck").value.trim();
     const memo = document.getElementById("matchMemo").value.trim();
 
@@ -519,11 +751,17 @@
       return;
     }
 
-    const roundNumber = roundStr ? parseInt(roundStr, 10) : 0;
-    if(!roundNumber || roundNumber <= 0){
-      alert("ラウンドを1以上の数値で入力してください。");
-      return;
+    let roundNumber = null;
+    if(roundStr){
+      const parsed = parseInt(roundStr, 10);
+      if(parsed > 0){
+        roundNumber = parsed;
+      }
     }
+    if(!roundNumber){
+      roundNumber = nextRoundNumber(matchDate, stage);
+    }
+
     if(!firstOrSecond){
       alert("先手／後手を選択してください。");
       return;
@@ -533,42 +771,64 @@
       return;
     }
 
-    function addMatch(deckImageDataUrl){
-      appData.matches.push({
-        id: genId("match"),
-        matchDate,
-        deckName,
-        deckImageDataUrl: deckImageDataUrl || null,
-        roundNumber,
-        firstOrSecond,
-        result,
-        score,
-        opponentDeckName,
-        memo,
-        createdAt: createdAtString()
-      });
+    let existing = null;
+    let existingImage = null;
+    if(editingMatchId){
+      existing = appData.matches.find(m => m.id === editingMatchId);
+      if(existing){
+        existingImage = existing.deckImageDataUrl || null;
+      }
+    }
+
+    function saveWithImage(imageDataUrl){
+      const finalImage = imageDataUrl !== null && imageDataUrl !== undefined
+        ? imageDataUrl
+        : existingImage;
+
+      if(editingMatchId && existing){
+        existing.matchDate = matchDate;
+        existing.stage = stage;
+        existing.deckName = deckName;
+        existing.deckImageDataUrl = finalImage || null;
+        existing.roundNumber = roundNumber;
+        existing.firstOrSecond = firstOrSecond;
+        existing.result = result;
+        existing.opponentDeckName = opponentDeckName;
+        existing.memo = memo;
+      }else{
+        appData.matches.push({
+          id: genId("match"),
+          matchDate,
+          stage,
+          deckName,
+          deckImageDataUrl: finalImage || null,
+          roundNumber,
+          firstOrSecond,
+          result,
+          opponentDeckName,
+          memo,
+          createdAt: createdAtString()
+        });
+      }
+
       saveData(appData);
       renderMatches();
-
-      document.getElementById("matchDeckName").value = "";
-      document.getElementById("matchRound").value = "";
-      document.getElementById("matchFirstSecond").value = "";
-      document.getElementById("matchResult").value = "";
-      document.getElementById("matchScore").value = "";
-      document.getElementById("matchOpponentDeck").value = "";
-      document.getElementById("matchMemo").value = "";
-      fileInput.value = "";
+      clearFormAndEditState();
     }
 
     if(file){
       const reader = new FileReader();
       reader.onload = () => {
-        addMatch(String(reader.result || ""));
+        saveWithImage(String(reader.result || ""));
       };
       reader.readAsDataURL(file);
     }else{
-      addMatch(null);
+      saveWithImage(null);
     }
+  });
+
+  document.getElementById("cancelEditButton").addEventListener("click", () => {
+    clearFormAndEditState();
   });
 
   document.getElementById("resetDataButton").addEventListener("click", () => {
@@ -578,11 +838,12 @@
     saveData(appData);
     renderMatches();
     document.getElementById("periodResult").textContent = "";
+    clearFormAndEditState();
   });
 
   document.getElementById("exportButton").addEventListener("click", () => {
     const payload = {
-      version: 5,
+      version: 7,
       exportedAt: new Date().toISOString(),
       matches: appData.matches
     };
@@ -632,6 +893,7 @@
         renderMatches();
         document.getElementById("periodResult").textContent = "";
         fileInput.value = "";
+        clearFormAndEditState();
         alert("復元しました。");
       }catch{
         alert("JSONの読み込みに失敗しました。");
@@ -677,6 +939,7 @@
 
   function init(){
     document.getElementById("matchDate").value = todayDate();
+    document.getElementById("matchStage").value = "予選";
     renderMatches();
   }
   init();
