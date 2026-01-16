@@ -1076,12 +1076,11 @@ function setupImageOverlayHandlers(){
     }
   });
 }
-
 /* =========================
    Supabase 認証・クラウド保存
 ========================= */
 const SUPABASE_URL = "https://fhtgpmaofiiexppowvqd.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZodGdwbWFvZmlpZXhwcG93dnFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTk3OTIsImV4cCI6MjA4NDA3NTc5Mn0.qgElUy71dfguW99f6gztRwXPuEFc87mV6oYW3AmCC9M";  // Settings → API の anon public
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZodGdwbWFvZmlpZXhwcG93dnFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTk3OTIsImV4cCI6MjA4NDA3NTc5Mn0.qgElUy71dfguW99f6gztRwXPuEFc87mV6oYW3AmCC9M";
 
 let supabaseClient = null;
 let currentUser = null;
@@ -1186,16 +1185,18 @@ async function handleCloudSave(){
     return;
   }
   try{
-    const jsonStr = JSON.stringify(appData, null, 2);
     const userId = currentUser.id;
 
+    // アプリ全体のデータ(appData)をそのままJSONとして保存
+    const payload = {
+      user_id: userId,
+      data: appData,
+      created_at: new Date().toISOString()  // 上書き時も現在時刻に更新
+    };
+
     const { error } = await supabaseClient
-      .from("backups")
-      .upsert({
-        user_id: userId,
-        data_json: jsonStr,
-        updated_at: new Date().toISOString()
-      }, { onConflict: "user_id" });
+      .from("match_backups")                // ← テーブル名
+      .upsert(payload, { onConflict: "user_id" });
 
     if(error){
       console.error(error);
@@ -1219,8 +1220,8 @@ async function handleCloudLoad(){
   try{
     const userId = currentUser.id;
     const { data, error } = await supabaseClient
-      .from("backups")
-      .select("data_json")
+      .from("match_backups")       // ← テーブル名
+      .select("data")
       .eq("user_id", userId)
       .single();
 
@@ -1229,12 +1230,12 @@ async function handleCloudLoad(){
       alert("クラウドからバックアップを取得できませんでした。");
       return;
     }
-    if(!data || !data.data_json){
+    if(!data || !data.data){
       alert("このユーザーのクラウドバックアップがありません。");
       return;
     }
 
-    const parsed = JSON.parse(data.data_json);
+    const parsed = data.data;      // jsonb をそのままオブジェクトとして取得
     if(!parsed || !Array.isArray(parsed.matches)){
       alert("クラウドバックアップの形式が不正です。");
       return;
