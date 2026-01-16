@@ -8,15 +8,15 @@
   <!-- Supabase ライブラリ -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
-   <style>
+  <style>
     body{
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin:0;
-      background:#f3f4f6;               /* うすいグレーでReact版っぽく */
+      background:#f3f4f6;
       font-size:14px;
     }
     header{
-      background:#1f2937;               /* 濃いグレー */
+      background:#1f2937;
       color:#fff;
       padding:16px 20px;
       text-align:center;
@@ -33,7 +33,6 @@
       margin:0 auto;
     }
 
-    /* カード風セクション */
     .section{
       background:#ffffff;
       border-radius:12px;
@@ -47,7 +46,7 @@
       margin:0 0 10px 0;
       font-size:16px;
       padding-left:10px;
-      border-left:4px solid #3b82f6;   /* 青いライン */
+      border-left:4px solid #3b82f6;
       font-weight:600;
       color:#111827;
     }
@@ -73,7 +72,6 @@
       color:#374151;
     }
 
-    /* 入力欄は全部 100% で統一 */
     input[type="text"],
     input[type="date"],
     input[type="number"],
@@ -100,7 +98,6 @@
       background:#f9fafb;
     }
 
-    /* iOS/Safari date の表示ズレ対策（見た目の統一） */
     input[type="date"]{
       -webkit-appearance:none;
       appearance:none;
@@ -123,11 +120,10 @@
       resize:vertical;
     }
 
-    /* ボタン類（React版風の色分け） */
     button{
       padding:8px 12px;
       border-radius:999px;
-      border:1px solid #2563eb;        /* 青 */
+      border:1px solid #2563eb;
       background:#2563eb;
       color:#fff;
       font-size:14px;
@@ -145,7 +141,6 @@
       transform:translateY(0);
     }
 
-    /* サブボタン（グレー） */
     button.secondary{
       background:#6b7280;
       border-color:#6b7280;
@@ -155,7 +150,6 @@
       border-color:#4b5563;
     }
 
-    /* 危険ボタン（赤） */
     button.danger{
       background:#b91c1c;
       border-color:#b91c1c;
@@ -171,7 +165,6 @@
       transform:none;
     }
 
-    /* タップ入力ボタン（四角ボタン） */
     .tap2{
       margin-top:6px;
     }
@@ -198,7 +191,6 @@
       border-color:#111827;
     }
 
-    /* 行レイアウト（縦一列） */
     .row{
       display:block;
       margin-bottom:6px;
@@ -209,7 +201,6 @@
       margin-bottom:6px;
     }
 
-    /* テーブル系 */
     table{
       width:100%;
       border-collapse:collapse;
@@ -326,7 +317,6 @@
       border-color:#991b1b;
     }
 
-    /* 画像拡大オーバーレイ */
     .image-overlay{
       position:fixed;
       inset:0;
@@ -376,14 +366,14 @@
         font-size:12px;
       }
     }
-     /* --- 大会一覧 折りたたみ --- */
-.tournament-collapsed .match-date-group {
-  display: none;
-}
-.tournament-summary-row {
-  cursor: pointer;
-}
 
+    /* 大会一覧 折りたたみ */
+    .tournament-collapsed .match-date-group {
+      display: none;
+    }
+    .tournament-summary-row {
+      cursor: pointer;
+    }
   </style>
 </head>
 
@@ -583,19 +573,19 @@
       同じブラウザではログイン状態が保持されます。ログアウトするまで再ログインは不要です。
     </div>
     <div id="lastCloudSave" class="small" style="margin-top:6px;">
-  前回クラウド保存: なし
-</div>
+      前回クラウド保存: なし
+    </div>
 
   </section>
 </main>
 
-<!-- 画像拡大オーバーレイ -->
 <div id="imageOverlay" class="image-overlay">
   <div class="image-overlay-content">
     <button id="imageOverlayClose" class="image-overlay-close">×</button>
     <img id="imageOverlayImg" alt="deck image large">
   </div>
 </div>
+
 <script>
 /* =========================
    ローカル保存用 定数・ユーティリティ
@@ -648,6 +638,14 @@ function nowFileTime(){
   const h = String(d.getHours()).padStart(2,"0");
   const mi = String(d.getMinutes()).padStart(2,"0");
   return `${y}-${m}-${da}_${h}${mi}`;
+}
+function formatDateToMd(dateStr){
+  if(!dateStr) return dateStr || "";
+  const parts = dateStr.split("-");
+  if(parts.length === 3){
+    return `${parts[1]}/${parts[2]}`;
+  }
+  return dateStr;
 }
 function escapeHtml(v){
   return String(v ?? "")
@@ -793,7 +791,7 @@ function renderTournamentSummary(){
 
     const detail = document.createElement("div");
     detail.className = "match-date-group";
-    detail.style.display = "none";  // 最初は閉じる
+    detail.style.display = "none";
 
     wrapper.appendChild(header);
     wrapper.appendChild(detail);
@@ -838,8 +836,49 @@ function renderMatchListForTournament(key, container){
 
   const title = document.createElement("div");
   title.className = "match-date-title";
-  title.textContent = `${tName}（${date}）`;
+  title.textContent = `${tName} ${formatDateToMd(date)}`;
   container.appendChild(title);
+
+  const simpleTable = document.createElement("table");
+  simpleTable.className = "small-table";
+
+  const theadTr = document.createElement("tr");
+  ["ラウンド","相手デッキ","先手／後手","勝敗"].forEach(label=>{
+    const th = document.createElement("th");
+    th.textContent = label;
+    theadTr.appendChild(th);
+  });
+  const thead = document.createElement("thead");
+  thead.appendChild(theadTr);
+  simpleTable.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+
+  list.forEach(m=>{
+    const tr = document.createElement("tr");
+
+    const roundTd = document.createElement("td");
+    const r = m.roundNumber != null ? m.roundNumber : "";
+    roundTd.textContent = `${m.stage || ""}${r ? r + "回戦" : ""}`;
+    tr.appendChild(roundTd);
+
+    const oppTd = document.createElement("td");
+    oppTd.textContent = m.opponentDeckName || "";
+    tr.appendChild(oppTd);
+
+    const fsTd = document.createElement("td");
+    fsTd.textContent = m.firstOrSecond || "";
+    tr.appendChild(fsTd);
+
+    const resultTd = document.createElement("td");
+    resultTd.textContent = m.result || "";
+    tr.appendChild(resultTd);
+
+    tbody.appendChild(tr);
+  });
+
+  simpleTable.appendChild(tbody);
+  container.appendChild(simpleTable);
 
   for(const stage of ["予選","本戦"]){
     const ms = list.filter(m=>m.stage===stage);
@@ -915,7 +954,6 @@ function renderMatchListForTournament(key, container){
     container.appendChild(sDiv);
   }
 
-  // 編集ボタン
   container.querySelectorAll(".match-edit-btn").forEach(btn=>{
     btn.addEventListener("click",()=>{
       const id = btn.dataset.id;
@@ -1300,7 +1338,6 @@ function updateCloudUi(){
   }
 }
 
-/* 「前回クラウド保存」の表示 */
 function formatTimestampStr(iso){
   const d = new Date(iso);
   if(isNaN(d)) return iso;
@@ -1410,7 +1447,6 @@ async function handleGoogleLogout(){
   }
 }
 
-/* クラウド保存 */
 async function handleCloudSave(){
   if(!supabaseClient || !currentUser){
     alert("まず Google でログインしてください。");
@@ -1466,7 +1502,6 @@ async function handleCloudSave(){
   }
 }
 
-/* クラウド読み込み */
 async function handleCloudLoad(){
   if(!supabaseClient || !currentUser){
     alert("まず Google でログインしてください。");
@@ -1539,7 +1574,6 @@ function init(){
 
 window.addEventListener("load", init);
 </script>
-
 
 </body>
 </html>
