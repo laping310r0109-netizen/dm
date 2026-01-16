@@ -242,7 +242,12 @@ textarea {
       main{ padding:12px; }
       table{ font-size:12px; }
     }
-   
+   /* Safari の date 入力欄の横幅暴れ防止（他と揃える） */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100% !important;
+}
   </style>
 </head>
 <body>
