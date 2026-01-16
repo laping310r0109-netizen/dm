@@ -376,6 +376,14 @@
         font-size:12px;
       }
     }
+     /* --- 大会一覧 折りたたみ --- */
+.tournament-collapsed .match-date-group {
+  display: none;
+}
+.tournament-summary-row {
+  cursor: pointer;
+}
+
   </style>
 </head>
 
@@ -574,6 +582,10 @@
     <div class="small">
       同じブラウザではログイン状態が保持されます。ログアウトするまで再ログインは不要です。
     </div>
+    <div id="lastCloudSave" class="small" style="margin-top:6px;">
+  前回クラウド保存: なし
+</div>
+
   </section>
 </main>
 
@@ -584,30 +596,22 @@
     <img id="imageOverlayImg" alt="deck image large">
   </div>
 </div>
-
 <script>
 /* =========================
-   ローカル保存
+   ローカル保存用 定数・ユーティリティ
 ========================= */
 const STORAGE_KEY = "dm_match_tracker_data_v11";
+const LAST_CLOUD_SAVE_KEY = "dm_match_last_cloud_save_at";
 
 function loadData(){
   const raw = localStorage.getItem(STORAGE_KEY);
-  if(!raw) return { matches: [], meta: { cloudDirty: false, lastCloudSavedAt: "", lastCloudSavedBy: "" } };
+  if(!raw) return { matches: [] };
   try{
     const data = JSON.parse(raw);
-    if(!data || typeof data !== "object") return { matches: [], meta: { cloudDirty: false, lastCloudSavedAt: "", lastCloudSavedBy: "" } };
-    if(!Array.isArray(data.matches)) data.matches = [];
-    if(!data.meta || typeof data.meta !== "object"){
-      data.meta = { cloudDirty: false, lastCloudSavedAt: "", lastCloudSavedBy: "" };
-    }else{
-      if(typeof data.meta.cloudDirty !== "boolean") data.meta.cloudDirty = false;
-      if(typeof data.meta.lastCloudSavedAt !== "string") data.meta.lastCloudSavedAt = "";
-      if(typeof data.meta.lastCloudSavedBy !== "string") data.meta.lastCloudSavedBy = "";
-    }
+    if(!Array.isArray(data.matches)) return { matches: [] };
     return data;
   }catch{
-    return { matches: [], meta: { cloudDirty: false, lastCloudSavedAt: "", lastCloudSavedBy: "" } };
+    return { matches: [] };
   }
 }
 function saveData(data){
@@ -616,19 +620,7 @@ function saveData(data){
 
 let appData = loadData();
 let editingMatchId = null;
-let selectedTournamentKey = null;
 
-/* 変更が入ったらクラウド未保存にする */
-function markDirty(){
-  if(!appData.meta) appData.meta = { cloudDirty: false, lastCloudSavedAt: "", lastCloudSavedBy: "" };
-  appData.meta.cloudDirty = true;
-  saveData(appData);
-  renderCloudSaveStatus();
-}
-
-/* =========================
-   ユーティリティ
-========================= */
 function genId(prefix){
   return prefix + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,8);
 }
@@ -699,83 +691,7 @@ function getLastTournamentName(){
   return last.tournamentName || "";
 }
 
-/* =========================
-   タップボタン（select連動）
-========================= */
-function setupTapButtons(){
-  document.querySelectorAll(".tapbtn").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      const selId = btn.dataset.setSelect;
-      const val = btn.dataset.value;
-      const sel = document.getElementById(selId);
-      if(!sel) return;
-      sel.value = val;
-
-      // active 表示
-      const group = btn.parentElement;
-      if(group){
-        group.querySelectorAll(".tapbtn").forEach(b=>b.classList.remove("active"));
-      }
-      btn.classList.add("active");
-    });
-  });
-
-  // select を直接変更したときも、ボタン active を合わせる
-  ["matchFirstSecond","matchResult"].forEach(id=>{
-    const sel = document.getElementById(id);
-    if(!sel) return;
-    sel.addEventListener("change", ()=>{
-      const parent = sel.parentElement;
-      if(!parent) return;
-      const group = parent.querySelector(".tap2");
-      if(!group) return;
-      group.querySelectorAll(".tapbtn").forEach(b=>{
-        b.classList.toggle("active", b.dataset.value === sel.value);
-      });
-    });
-  });
-}
-
-/* =========================
-   画像圧縮
-========================= */
-async function fileToCompressedDataUrl(file, maxSize=900, quality=0.82){
-  const rawDataUrl = await new Promise((resolve, reject)=>{
-    const r = new FileReader();
-    r.onload = ()=> resolve(String(r.result||""));
-    r.onerror = ()=> reject(new Error("file read error"));
-    r.readAsDataURL(file);
-  });
-
-  const img = await new Promise((resolve, reject)=>{
-    const im = new Image();
-    im.onload = ()=> resolve(im);
-    im.onerror = ()=> reject(new Error("image load error"));
-    im.src = rawDataUrl;
-  });
-
-  let w = img.width;
-  let h = img.height;
-  const scale = Math.min(1, maxSize / Math.max(w,h));
-  w = Math.round(w * scale);
-  h = Math.round(h * scale);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, w, h);
-
-  try{
-    return canvas.toDataURL("image/jpeg", quality);
-  }catch{
-    return rawDataUrl;
-  }
-}
-
-/* =========================
-   自動引き継ぎ（デッキ名＋画像）
-========================= */
+/* 自動引き継ぎ */
 function applyCarryOverIfPossible(){
   if(editingMatchId) return;
 
@@ -807,96 +723,20 @@ function applyCarryOverIfPossible(){
   }
 }
 
-/* =========================
-   統計（全体）
-========================= */
+/* 統計 */
 function overallStats(){
-  let total=0, win=0, lose=0, first=0, second=0;
+  let total=0, win=0, lose=0, first=0;
   for(const m of appData.matches){
     total++;
     if(m.result==="勝ち") win++;
     if(m.result==="負け") lose++;
     if(m.firstOrSecond==="先手") first++;
-    if(m.firstOrSecond==="後手") second++;
   }
-  return { total, win, lose, first, second };
-}
-
-function renderFirstSecondStats(){
-  const fsDiv = document.getElementById("fsStats");
-  if(!fsDiv) return;
-
-  let fTotal=0,fWin=0,fLose=0,sTotal=0,sWin=0,sLose=0;
-
-  for(const m of appData.matches){
-    if(m.firstOrSecond === "先手"){
-      fTotal++;
-      if(m.result==="勝ち") fWin++;
-      if(m.result==="負け") fLose++;
-    }else if(m.firstOrSecond === "後手"){
-      sTotal++;
-      if(m.result==="勝ち") sWin++;
-      if(m.result==="負け") sLose++;
-    }
-  }
-
-  if(appData.matches.length===0){
-    fsDiv.textContent = "まだ対戦記録がありません。";
-    return;
-  }
-
-  const fRate = percent(fWin, fTotal);
-  const sRate = percent(sWin, sTotal);
-
-  fsDiv.innerHTML =
-    `先手: ${fTotal}戦（勝ち ${fWin} / 負け ${fLose}）` + (fRate!=null?`　勝率 ${fRate}%`:"") + `<br>` +
-    `後手: ${sTotal}戦（勝ち ${sWin} / 負け ${sLose}）` + (sRate!=null?`　勝率 ${sRate}%`:"");
-}
-
-function renderDeckStats(){
-  const div = document.getElementById("deckStats");
-  if(!div) return;
-  div.innerHTML = "";
-
-  if(appData.matches.length===0){
-    div.textContent = "まだ対戦記録がありません。";
-    return;
-  }
-
-  const map = {};
-  for(const m of appData.matches){
-    const name = (m.deckName || "").trim();
-    if(!name) continue;
-    if(!map[name]) map[name] = { total:0, win:0, lose:0 };
-    map[name].total++;
-    if(m.result==="勝ち") map[name].win++;
-    if(m.result==="負け") map[name].lose++;
-  }
-
-  const names = Object.keys(map).sort((a,b)=>a.localeCompare(b,"ja"));
-  if(names.length===0){
-    div.textContent = "デッキ名が入っている対戦がありません。";
-    return;
-  }
-
-  let html = `<table class="small-table"><thead><tr><th>デッキ名</th><th>対戦</th><th>勝ち</th><th>負け</th><th>勝率</th></tr></thead><tbody>`;
-  for(const n of names){
-    const s = map[n];
-    const r = percent(s.win, s.total);
-    html += `<tr>
-      <td>${escapeHtml(n)}</td>
-      <td>${s.total}</td>
-      <td>${s.win}</td>
-      <td>${s.lose}</td>
-      <td>${r!=null? r+"%":""}</td>
-    </tr>`;
-  }
-  html += `</tbody></table>`;
-  div.innerHTML = html;
+  return { total, win, lose, first };
 }
 
 /* =========================
-   大会一覧（まとめ）
+   大会ごとの結果（折りたたみ）
 ========================= */
 function renderTournamentSummary(){
   const div = document.getElementById("tournamentSummary");
@@ -919,62 +759,63 @@ function renderTournamentSummary(){
     const [nb, db] = b.split("||");
 
     if(da === db) return na.localeCompare(nb, "ja");
+
     if(da === "日付未設定") return -1;
     if(db === "日付未設定") return 1;
+
     return da < db ? -1 : 1;
   });
 
-  const table = document.createElement("table");
-  const thead = document.createElement("thead");
-  thead.innerHTML = "<tr><th>大会名</th><th>日付</th><th>対戦数</th><th>勝ち</th><th>負け</th><th>勝率</th></tr>";
-  table.appendChild(thead);
-
-  const tbody = document.createElement("tbody");
-
-  for(const key of keys){
+  keys.forEach(key=>{
     const [tName, date] = key.split("||");
     const ms = groups[key];
 
-    let total = ms.length;
-    let win=0, lose=0;
-    for(const m of ms){
-      if(m.result==="勝ち") win++;
-      if(m.result==="負け") lose++;
-    }
+    const wrapper = document.createElement("div");
+    wrapper.className = "tournament-wrapper";
+    wrapper.dataset.key = key;
+
+    const header = document.createElement("div");
+    header.className = "tournament-summary-row";
+    header.style.padding = "6px 8px";
+    header.style.border = "1px solid #ccc";
+    header.style.marginBottom = "4px";
+    header.style.borderRadius = "4px";
+    header.style.background = "#f7f7f7";
+
+    const win = ms.filter(m=>m.result==="勝ち").length;
+    const lose = ms.filter(m=>m.result==="負け").length;
+    const total = ms.length;
     const rate = percent(win,total);
 
-    const tr = document.createElement("tr");
-    tr.dataset.key = key;
+    header.innerHTML =
+      `<b>${escapeHtml(tName)}（${escapeHtml(date)}）</b><br>
+       試合数: ${total} / 勝ち: ${win} / 負け: ${lose} / 勝率: ${rate!=null?rate+"%":""}`;
 
-    tr.innerHTML =
-      `<td>${escapeHtml(tName)}</td>
-       <td>${escapeHtml(date)}</td>
-       <td>${total}</td>
-       <td>${win}</td>
-       <td>${lose}</td>
-       <td>${rate!=null?rate+"%":""}</td>`;
+    const detail = document.createElement("div");
+    detail.className = "match-date-group";
+    detail.style.display = "none";  // 最初は閉じる
 
-    tbody.appendChild(tr);
-  }
+    wrapper.appendChild(header);
+    wrapper.appendChild(detail);
+    div.appendChild(wrapper);
 
-  table.appendChild(tbody);
-  div.appendChild(table);
-
-  tbody.querySelectorAll("tr").forEach(tr=>{
-    tr.addEventListener("click",()=>{
-      selectedTournamentKey = tr.dataset.key || null;
-      if(selectedTournamentKey) renderMatchListForTournament(selectedTournamentKey);
-      const rect = document.getElementById("matchList").getBoundingClientRect();
-      window.scrollTo({top:rect.top+window.scrollY-60,behavior:"smooth"});
+    header.addEventListener("click", ()=>{
+      const isOpen = detail.style.display === "block";
+      if(isOpen){
+        detail.style.display = "none";
+      }else{
+        detail.style.display = "block";
+        if(!detail.dataset.rendered){
+          renderMatchListForTournament(key, detail);
+          detail.dataset.rendered = "1";
+        }
+      }
     });
   });
 }
 
-/* =========================
-   大会の対戦一覧（カード）＋編集／削除
-========================= */
-function renderMatchListForTournament(key){
-  const container = document.getElementById("matchList");
+/* 大会の対戦一覧（折りたたみ内に描画） */
+function renderMatchListForTournament(key, container){
   container.innerHTML = "";
 
   const [tName, date] = key.split("||");
@@ -995,13 +836,10 @@ function renderMatchListForTournament(key){
     return;
   }
 
-  const wrapper = document.createElement("div");
-  wrapper.className = "match-date-group";
-
   const title = document.createElement("div");
   title.className = "match-date-title";
   title.textContent = `${tName}（${date}）`;
-  wrapper.appendChild(title);
+  container.appendChild(title);
 
   for(const stage of ["予選","本戦"]){
     const ms = list.filter(m=>m.stage===stage);
@@ -1030,14 +868,8 @@ function renderMatchListForTournament(key){
       editBtn.className = "secondary match-edit-btn";
       editBtn.dataset.id = m.id;
 
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "削除";
-      delBtn.className = "match-delete-btn";
-      delBtn.dataset.id = m.id;
-
       header.appendChild(titleSpan);
       header.appendChild(editBtn);
-      header.appendChild(delBtn);
       card.appendChild(header);
 
       const table = document.createElement("table");
@@ -1070,22 +902,21 @@ function renderMatchListForTournament(key){
         resultHtml = `<span class="badge lose">負け</span>`;
       }
       tb.appendChild(row("勝敗", resultHtml));
+
       tb.appendChild(row("相手デッキ", escapeHtml(m.opponentDeckName||"")));
       tb.appendChild(row("メモ", escapeHtml(m.memo||"")));
       tb.appendChild(row("記録日時", escapeHtml(m.createdAt||"")));
 
       table.appendChild(tb);
       card.appendChild(table);
-
       sDiv.appendChild(card);
     }
 
-    wrapper.appendChild(sDiv);
+    container.appendChild(sDiv);
   }
 
-  container.appendChild(wrapper);
-
-  document.querySelectorAll(".match-edit-btn").forEach(btn=>{
+  // 編集ボタン
+  container.querySelectorAll(".match-edit-btn").forEach(btn=>{
     btn.addEventListener("click",()=>{
       const id = btn.dataset.id;
       const m = appData.matches.find(x=>x.id===id);
@@ -1093,29 +924,10 @@ function renderMatchListForTournament(key){
     });
   });
 
-  document.querySelectorAll(".match-delete-btn").forEach(btn=>{
-    btn.addEventListener("click",()=>{
-      const id = btn.dataset.id;
-      const m = appData.matches.find(x=>x.id===id);
-      if(!m) return;
-      const ok = confirm("この対戦を削除します。よろしいですか？");
-      if(!ok) return;
-
-      appData.matches = appData.matches.filter(x=>x.id!==id);
-      saveData(appData);
-      markDirty();
-      renderMatches();
-      // 削除後も同じ大会を表示し直す
-      renderMatchListForTournament(key);
-    });
-  });
-
   setupImageOverlayHandlers();
 }
 
-/* =========================
-   全体の再描画（統計＋大会一覧）
-========================= */
+/* 全体統計の描画 */
 function renderMatches(){
   const s = overallStats();
   const winRate = percent(s.win, s.total);
@@ -1132,24 +944,17 @@ function renderMatches(){
       `先手率: 先手 ${s.first} / ${s.total}` + (firstRate!=null?`（${firstRate}%）`:"");
   }
 
-  renderFirstSecondStats();
-  renderDeckStats();
   renderTournamentSummary();
 
   const matchList = document.getElementById("matchList");
   if(appData.matches.length === 0){
     matchList.textContent = "まだ対戦記録がありません。";
-  }else if(!selectedTournamentKey){
-    matchList.textContent = "上の「大会ごとの結果」から大会をタップすると、この場所にその大会の対戦カードが表示されます。";
   }else{
-    // 選択中大会がある場合は維持
-    renderMatchListForTournament(selectedTournamentKey);
+    matchList.textContent = "大会名のボックスをタップすると、その場で対戦一覧が開閉します。";
   }
 }
 
-/* =========================
-   編集モード
-========================= */
+/* 編集モード */
 function fillFormForEdit(m){
   document.getElementById("matchDate").value = m.matchDate;
   document.getElementById("tournamentName").value = m.tournamentName;
@@ -1160,20 +965,6 @@ function fillFormForEdit(m){
   document.getElementById("matchResult").value = m.result;
   document.getElementById("matchOpponentDeck").value = m.opponentDeckName;
   document.getElementById("matchMemo").value = m.memo;
-  document.getElementById("matchDeckImage").value = "";
-
-  // ボタン active 同期
-  ["matchFirstSecond","matchResult"].forEach(id=>{
-    const sel = document.getElementById(id);
-    if(!sel) return;
-    const parent = sel.parentElement;
-    if(!parent) return;
-    const group = parent.querySelector(".tap2");
-    if(!group) return;
-    group.querySelectorAll(".tapbtn").forEach(b=>{
-      b.classList.toggle("active", b.dataset.value === sel.value);
-    });
-  });
 
   const info = document.getElementById("currentDeckImageInfo");
   const img = document.getElementById("currentDeckImagePreview");
@@ -1184,8 +975,9 @@ function fillFormForEdit(m){
     info.style.display = "none";
     img.src = "";
   }
-}
 
+  document.getElementById("matchDeckImage").value = "";
+}
 function clearForm(){
   editingMatchId = null;
 
@@ -1200,16 +992,12 @@ function clearForm(){
   document.getElementById("matchOpponentDeck").value = "";
   document.getElementById("matchMemo").value = "";
 
-  // active解除
-  document.querySelectorAll(".tapbtn").forEach(b=>b.classList.remove("active"));
-
   document.getElementById("currentDeckImageInfo").style.display = "none";
   document.getElementById("currentDeckImagePreview").src = "";
   document.getElementById("editStatus").textContent = "";
   document.getElementById("addMatchButton").textContent = "対戦を追加";
   document.getElementById("cancelEditButton").style.display = "none";
 }
-
 function startEdit(m){
   editingMatchId = m.id;
   fillFormForEdit(m);
@@ -1223,248 +1011,236 @@ function startEdit(m){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 
-/* =========================
-   対戦追加・更新
-========================= */
-document.getElementById("addMatchButton").addEventListener("click", async ()=>{
-  let matchDateInput = document.getElementById("matchDate");
-  let matchDate = matchDateInput.value;
-  if(!matchDate){
-    matchDate = todayDate();
-    matchDateInput.value = matchDate;
-  }
+/* 対戦追加・更新 */
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.getElementById("addMatchButton").addEventListener("click", ()=>{
+    let matchDateInput = document.getElementById("matchDate");
+    let matchDate = matchDateInput.value;
 
-  let tournamentName = document.getElementById("tournamentName").value.trim();
-  if(!tournamentName) tournamentName = "大会";
-
-  const stage = document.getElementById("matchStage").value || "予選";
-  let deckName = document.getElementById("matchDeckName").value.trim();
-
-  const fileInput = document.getElementById("matchDeckImage");
-  const file = fileInput.files && fileInput.files[0];
-
-  const roundStr = document.getElementById("matchRound").value;
-  const first = document.getElementById("matchFirstSecond").value;
-  const result = document.getElementById("matchResult").value;
-  const opp = document.getElementById("matchOpponentDeck").value.trim();
-  const memo = document.getElementById("matchMemo").value.trim();
-
-  const lastSame = findLastMatchSameTournament(matchDate, tournamentName);
-
-  if(!deckName && lastSame && lastSame.deckName){
-    deckName = lastSame.deckName;
-    document.getElementById("matchDeckName").value = deckName;
-  }
-
-  if(!deckName){
-    alert("使用デッキ名を入力してください。");
-    return;
-  }
-  if(!first){
-    alert("先手／後手を選択してください。");
-    return;
-  }
-  if(!result){
-    alert("勝敗を選択してください。");
-    return;
-  }
-
-  let roundNumber = null;
-  if(roundStr){
-    const r = parseInt(roundStr,10);
-    if(r>0) roundNumber = r;
-  }
-  if(!roundNumber){
-    roundNumber = nextRoundNumber(matchDate, tournamentName, stage);
-  }
-
-  const existing = editingMatchId ? appData.matches.find(m=>m.id===editingMatchId) : null;
-  const lastImg = lastSame ? (lastSame.deckImageDataUrl || null) : null;
-  const existImg = existing ? (existing.deckImageDataUrl || null) : null;
-
-  async function finalize(imageDataUrl){
-    let imgToUse = null;
-    if(imageDataUrl != null){
-      imgToUse = imageDataUrl;
-    }else if(existImg != null){
-      imgToUse = existImg;
-    }else if(lastImg != null){
-      imgToUse = lastImg;
+    if(!matchDate){
+      matchDate = todayDate();
+      matchDateInput.value = matchDate;
     }
 
-    if(existing){
-      existing.matchDate = matchDate;
-      existing.tournamentName = tournamentName;
-      existing.stage = stage;
-      existing.deckName = deckName;
-      existing.deckImageDataUrl = imgToUse;
-      existing.roundNumber = roundNumber;
-      existing.firstOrSecond = first;
-      existing.result = result;
-      existing.opponentDeckName = opp;
-      existing.memo = memo;
-    }else{
-      appData.matches.push({
-        id: genId("match"),
-        matchDate,
-        tournamentName,
-        stage,
-        deckName,
-        deckImageDataUrl: imgToUse,
-        roundNumber,
-        firstOrSecond: first,
-        result,
-        opponentDeckName: opp,
-        memo,
-        createdAt: createdAtString()
-      });
+    let tournamentName = document.getElementById("tournamentName").value.trim();
+    if(!tournamentName) tournamentName = "大会";
+
+    const stage = document.getElementById("matchStage").value || "予選";
+    let deckName = document.getElementById("matchDeckName").value.trim();
+
+    const fileInput = document.getElementById("matchDeckImage");
+    const file = fileInput.files && fileInput.files[0];
+
+    const roundStr = document.getElementById("matchRound").value;
+    const first = document.getElementById("matchFirstSecond").value;
+    const result = document.getElementById("matchResult").value;
+    const opp = document.getElementById("matchOpponentDeck").value.trim();
+    const memo = document.getElementById("matchMemo").value.trim();
+
+    if(!deckName){
+      const last = findLastMatchSameTournament(matchDate, tournamentName);
+      if(last && last.deckName){
+        deckName = last.deckName;
+        document.getElementById("matchDeckName").value = deckName;
+      }
     }
 
-    saveData(appData);
-    markDirty();
-    renderMatches();
-
-    clearForm();
-    document.getElementById("tournamentName").value = tournamentName;
-  }
-
-  if(file){
-    try{
-      const dataUrl = await fileToCompressedDataUrl(file);
-      await finalize(dataUrl);
-    }catch{
-      // 圧縮失敗時は従来通り
-      const reader = new FileReader();
-      reader.onload = async ()=> finalize(String(reader.result||""));
-      reader.readAsDataURL(file);
+    if(!deckName){
+      alert("使用デッキ名を入力してください。");
+      return;
     }
-  }else{
-    await finalize(null);
-  }
-});
+    if(!first){
+      alert("先手／後手を選択してください。");
+      return;
+    }
+    if(!result){
+      alert("勝敗を選択してください。");
+      return;
+    }
 
-document.getElementById("cancelEditButton").addEventListener("click", clearForm);
+    let roundNumber = null;
+    if(roundStr){
+      const r = parseInt(roundStr,10);
+      if(r>0) roundNumber = r;
+    }
+    if(!roundNumber){
+      roundNumber = nextRoundNumber(matchDate, tournamentName, stage);
+    }
 
-/* =========================
-   期間集計
-========================= */
-document.getElementById("calcPeriodButton").addEventListener("click", ()=>{
-  const start = document.getElementById("periodStart").value;
-  const end = document.getElementById("periodEnd").value;
+    const existing = editingMatchId
+      ? appData.matches.find(m=>m.id===editingMatchId)
+      : null;
 
-  if(start && end && start > end){
-    alert("開始日は終了日以前にしてください。");
-    return;
-  }
+    const lastMatchSame = findLastMatchSameTournament(matchDate, tournamentName);
+    const lastImg = lastMatchSame ? lastMatchSame.deckImageDataUrl : null;
+    const existImg = existing ? existing.deckImageDataUrl : null;
 
-  let total=0, win=0, first=0;
-
-  for(const m of appData.matches){
-    if(!m.matchDate) continue;
-    if(start && m.matchDate < start) continue;
-    if(end && m.matchDate > end) continue;
-
-    total++;
-    if(m.result==="勝ち") win++;
-    if(m.firstOrSecond==="先手") first++;
-  }
-
-  const div = document.getElementById("periodResult");
-  if(total===0){
-    div.textContent = "この期間に集計対象の対戦はありません。";
-    return;
-  }
-
-  const winRate = percent(win,total);
-  const firstRate = percent(first,total);
-
-  div.innerHTML =
-    `対象期間: ${escapeHtml(start||"指定なし")} 〜 ${escapeHtml(end||"指定なし")}<br>`+
-    `対戦数: ${total}<br>`+
-    `ゲーム勝率: 勝ち ${win} / ${total}` + (winRate!=null?`（${winRate}%）`:"") + `<br>`+
-    `先手率: 先手 ${first} / ${total}` + (firstRate!=null?`（${firstRate}%）`:"");
-});
-
-/* =========================
-   ローカルバックアップ（JSON）
-========================= */
-document.getElementById("exportButton").addEventListener("click", ()=>{
-  const payload = {
-    version: 11,
-    exportedAt: new Date().toISOString(),
-    matches: appData.matches
-  };
-
-  const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `match_backup_${nowFileTime()}.json`;
-  a.click();
-
-  URL.revokeObjectURL(url);
-});
-
-document.getElementById("importButton").addEventListener("click", ()=>{
-  const fileInput = document.getElementById("importFile");
-  if(!fileInput.files || fileInput.files.length===0){
-    alert("JSONファイルを選択してください。");
-    return;
-  }
-
-  const file = fileInput.files[0];
-  const reader = new FileReader();
-
-  reader.onload = ()=>{
-    try{
-      const data = JSON.parse(String(reader.result||""));
-      if(!Array.isArray(data.matches)){
-        alert("形式が不正です。");
-        return;
+    function finalize(imageDataUrl){
+      let imgToUse = null;
+      if(imageDataUrl != null){
+        imgToUse = imageDataUrl;
+      }else if(existImg != null){
+        imgToUse = existImg;
+      }else if(lastImg != null){
+        imgToUse = lastImg;
       }
 
-      if(!confirm("復元すると今のデータは上書きされます。実行しますか？")) return;
+      if(existing){
+        existing.matchDate = matchDate;
+        existing.tournamentName = tournamentName;
+        existing.stage = stage;
+        existing.deckName = deckName;
+        existing.deckImageDataUrl = imgToUse;
+        existing.roundNumber = roundNumber;
+        existing.firstOrSecond = first;
+        existing.result = result;
+        existing.opponentDeckName = opp;
+        existing.memo = memo;
+      }else{
+        appData.matches.push({
+          id: genId("match"),
+          matchDate,
+          tournamentName,
+          stage,
+          deckName,
+          deckImageDataUrl: imgToUse,
+          roundNumber,
+          firstOrSecond: first,
+          result,
+          opponentDeckName: opp,
+          memo,
+          createdAt: createdAtString()
+        });
+      }
 
-      // meta は維持（クラウド保存状態は残す）
-      const meta = appData.meta || { cloudDirty:false, lastCloudSavedAt:"", lastCloudSavedBy:"" };
-      appData = { matches: data.matches, meta };
       saveData(appData);
-      markDirty();
-      selectedTournamentKey = null;
-
       renderMatches();
       clearForm();
-      document.getElementById("periodResult").textContent = "";
-      fileInput.value = "";
 
-      alert("復元しました。");
-    }catch{
-      alert("JSONの解析に失敗しました。");
+      document.getElementById("tournamentName").value = tournamentName;
     }
-  };
 
-  reader.readAsText(file,"utf-8");
+    if(file){
+      const reader = new FileReader();
+      reader.onload = ()=> finalize(reader.result);
+      reader.readAsDataURL(file);
+    }else{
+      finalize(null);
+    }
+  });
+
+  document.getElementById("cancelEditButton").addEventListener("click", clearForm);
 });
 
-document.getElementById("resetDataButton").addEventListener("click", ()=>{
-  if(!confirm("保存データを全削除します。よろしいですか？")) return;
+/* 期間集計 */
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.getElementById("calcPeriodButton").addEventListener("click", ()=>{
+    const start = document.getElementById("periodStart").value;
+    const end = document.getElementById("periodEnd").value;
 
-  // meta は維持（クラウド保存状態は残す）
-  const meta = appData.meta || { cloudDirty:false, lastCloudSavedAt:"", lastCloudSavedBy:"" };
-  appData = { matches: [], meta };
-  saveData(appData);
-  markDirty();
-  selectedTournamentKey = null;
+    if(start && end && start > end){
+      alert("開始日は終了日以前にしてください。");
+      return;
+    }
 
-  renderMatches();
-  clearForm();
-  document.getElementById("periodResult").textContent = "";
+    let total=0, win=0, first=0;
+
+    for(const m of appData.matches){
+      if(!m.matchDate) continue;
+      if(start && m.matchDate < start) continue;
+      if(end && m.matchDate > end) continue;
+
+      total++;
+      if(m.result==="勝ち") win++;
+      if(m.firstOrSecond==="先手") first++;
+    }
+
+    const div = document.getElementById("periodResult");
+
+    if(total===0){
+      div.textContent = "この期間に集計対象の対戦はありません。";
+      return;
+    }
+
+    const winRate = percent(win,total);
+    const firstRate = percent(first,total);
+
+    div.innerHTML =
+      `対象期間: ${escapeHtml(start||"指定なし")} 〜 ${escapeHtml(end||"指定なし")}<br>`+
+      `対戦数: ${total}<br>`+
+      `ゲーム勝率: 勝ち ${win} / ${total}` + (winRate!=null?`（${winRate}%）`:"") + `<br>`+
+      `先手率: 先手 ${first} / ${total}` + (firstRate!=null?`（${firstRate}%）`:"");
+  });
 });
 
-/* =========================
-   画像オーバーレイ
-========================= */
+/* バックアップ書き出し */
+document.addEventListener("DOMContentLoaded", ()=>{
+  document.getElementById("exportButton").addEventListener("click", ()=>{
+    const payload = {
+      version: 11,
+      exportedAt: new Date().toISOString(),
+      matches: appData.matches
+    };
+
+    const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `match_backup_${nowFileTime()}.json`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById("importButton").addEventListener("click", ()=>{
+    const fileInput = document.getElementById("importFile");
+    if(!fileInput.files || fileInput.files.length===0){
+      alert("JSONファイルを選択してください。");
+      return;
+    }
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        if(!Array.isArray(data.matches)){
+          alert("形式が不正です。");
+          return;
+        }
+
+        if(!confirm("復元すると今のデータは上書きされます。実行しますか？")) return;
+
+        appData = data;
+        saveData(appData);
+        renderMatches();
+        clearForm();
+        document.getElementById("periodResult").textContent = "";
+        fileInput.value = "";
+
+        alert("復元しました。");
+      }catch{
+        alert("JSONの解析に失敗しました。");
+      }
+    };
+
+    reader.readAsText(file,"utf-8");
+  });
+
+  document.getElementById("resetDataButton").addEventListener("click", ()=>{
+    if(!confirm("保存データを全削除します。よろしいですか？")) return;
+
+    appData = { matches: [] };
+    saveData(appData);
+    renderMatches();
+    clearForm();
+    document.getElementById("periodResult").textContent = "";
+  });
+});
+
+/* 画像オーバーレイ */
 function setupImageOverlayHandlers(){
   const overlay = document.getElementById("imageOverlay");
   const overlayImg = document.getElementById("imageOverlayImg");
@@ -1491,36 +1267,7 @@ function setupImageOverlayHandlers(){
 }
 
 /* =========================
-   クラウド保存状態表示
-========================= */
-function renderCloudSaveStatus(){
-  const div = document.getElementById("cloudSaveStatus");
-  if(!div) return;
-
-  const meta = appData.meta || { cloudDirty:false, lastCloudSavedAt:"", lastCloudSavedBy:"" };
-  const dirty = meta.cloudDirty;
-  const lastAt = meta.lastCloudSavedAt;
-  const lastBy = meta.lastCloudSavedBy;
-
-  let msg = "";
-  if(dirty){
-    msg = "ローカル変更あり（未クラウド保存）";
-  }else{
-    msg = "クラウド保存済み";
-  }
-  if(lastAt){
-    msg += ` / 最終クラウド保存: ${lastAt}`;
-  }
-  if(lastBy){
-    msg += ` / ${lastBy}`;
-  }
-  div.textContent = msg;
-}
-
-/* =========================
    Supabase 認証・クラウド保存
-   テーブル: match_backups
-   カラム: id(uuid), user_id(uuid), data(jsonb), created_at(timestamptz)
 ========================= */
 const SUPABASE_URL = "https://fhtgpmaofiiexppowvqd.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZodGdwbWFvZmlpZXhwcG93dnFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0OTk3OTIsImV4cCI6MjA4NDA3NTc5Mn0.qgElUy71dfguW99f6gztRwXPuEFc87mV6oYW3AmCC9M";
@@ -1553,6 +1300,47 @@ function updateCloudUi(){
   }
 }
 
+/* 「前回クラウド保存」の表示 */
+function formatTimestampStr(iso){
+  const d = new Date(iso);
+  if(isNaN(d)) return iso;
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const da = String(d.getDate()).padStart(2,"0");
+  const h = String(d.getHours()).padStart(2,"0");
+  const mi = String(d.getMinutes()).padStart(2,"0");
+  return `${y}-${m}-${da} ${h}:${mi}`;
+}
+function getLastCloudSaveElement(){
+  let el = document.getElementById("lastCloudSave");
+  if(!el){
+    const status = document.getElementById("cloudStatus");
+    if(status && status.parentElement){
+      el = document.createElement("div");
+      el.id = "lastCloudSave";
+      el.className = "small";
+      el.style.marginTop = "4px";
+      status.parentElement.insertBefore(el, status.nextSibling);
+    }
+  }
+  return el;
+}
+function loadLastCloudSaveFromStorage(){
+  const el = getLastCloudSaveElement();
+  if(!el) return;
+  const ts = localStorage.getItem(LAST_CLOUD_SAVE_KEY);
+  if(!ts){
+    el.textContent = "前回クラウド保存: なし";
+  }else{
+    el.textContent = "前回クラウド保存: " + formatTimestampStr(ts);
+  }
+}
+function saveLastCloudSaveNow(){
+  const nowIso = new Date().toISOString();
+  localStorage.setItem(LAST_CLOUD_SAVE_KEY, nowIso);
+  loadLastCloudSaveFromStorage();
+}
+
 async function initSupabaseAuth(){
   if(typeof supabase === "undefined"){
     console.error("supabase-js が読み込まれていません。");
@@ -1575,12 +1363,10 @@ async function initSupabaseAuth(){
     currentUser = data.user ?? null;
   }
   updateCloudUi();
-  renderCloudSaveStatus();
 
   supabaseClient.auth.onAuthStateChange((_event, session)=>{
     currentUser = session?.user ?? null;
     updateCloudUi();
-    renderCloudSaveStatus();
   });
 }
 
@@ -1624,6 +1410,7 @@ async function handleGoogleLogout(){
   }
 }
 
+/* クラウド保存 */
 async function handleCloudSave(){
   if(!supabaseClient || !currentUser){
     alert("まず Google でログインしてください。");
@@ -1632,32 +1419,36 @@ async function handleCloudSave(){
   try{
     const userId = currentUser.id;
 
-    // user_id の行があるか確認（unique制約なし想定）
+    const payload = {
+      user_id: userId,
+      data: appData,
+      created_at: new Date().toISOString()
+    };
+
     const { data: existing, error: selectError } = await supabaseClient
       .from("match_backups")
       .select("id")
       .eq("user_id", userId)
       .maybeSingle();
 
-    if(selectError){
+    if(selectError && selectError.code !== "PGRST116"){
       console.error(selectError);
       alert("クラウド保存に失敗しました。");
       return;
     }
 
-    const nowIso = new Date().toISOString();
     let error = null;
 
     if(existing){
       const res = await supabaseClient
         .from("match_backups")
-        .update({ data: appData, created_at: nowIso })
+        .update({ data: appData, created_at: new Date().toISOString() })
         .eq("id", existing.id);
       error = res.error;
     }else{
       const res = await supabaseClient
         .from("match_backups")
-        .insert({ user_id: userId, data: appData, created_at: nowIso });
+        .insert(payload);
       error = res.error;
     }
 
@@ -1667,14 +1458,7 @@ async function handleCloudSave(){
       return;
     }
 
-    // 保存状態更新（ローカル）
-    if(!appData.meta) appData.meta = { cloudDirty:false, lastCloudSavedAt:"", lastCloudSavedBy:"" };
-    appData.meta.cloudDirty = false;
-    appData.meta.lastCloudSavedAt = nowIso.replace("T"," ").slice(0,16);
-    appData.meta.lastCloudSavedBy = currentUser.email || "";
-    saveData(appData);
-    renderCloudSaveStatus();
-
+    saveLastCloudSaveNow();
     alert("クラウドに保存しました。");
   }catch(e){
     console.error(e);
@@ -1682,6 +1466,7 @@ async function handleCloudSave(){
   }
 }
 
+/* クラウド読み込み */
 async function handleCloudLoad(){
   if(!supabaseClient || !currentUser){
     alert("まず Google でログインしてください。");
@@ -1715,26 +1500,11 @@ async function handleCloudLoad(){
       return;
     }
 
-    // meta はローカル側のものを引き継ぎ（保存状態）
-    const meta = appData.meta || { cloudDirty:false, lastCloudSavedAt:"", lastCloudSavedBy:"" };
-    appData = { matches: parsed.matches, meta };
+    appData = parsed;
     saveData(appData);
-    // 復元したので未保存ではない扱いにしておく
-    if(!appData.meta) appData.meta = meta;
-    appData.meta.cloudDirty = false;
-    if(data.created_at){
-      // created_at は ISO 文字列の想定
-      const at = String(data.created_at).replace("T"," ").slice(0,16);
-      appData.meta.lastCloudSavedAt = at;
-    }
-    appData.meta.lastCloudSavedBy = currentUser.email || "";
-    saveData(appData);
-
-    selectedTournamentKey = null;
     renderMatches();
     clearForm();
     document.getElementById("periodResult").textContent = "";
-    renderCloudSaveStatus();
 
     alert("クラウドバックアップから復元しました。");
   }catch(e){
@@ -1743,9 +1513,7 @@ async function handleCloudLoad(){
   }
 }
 
-/* =========================
-   初期化
-========================= */
+/* 初期化 */
 function init(){
   document.getElementById("matchDate").value = todayDate();
   document.getElementById("matchStage").value = "予選";
@@ -1758,18 +1526,20 @@ function init(){
   document.getElementById("matchDate").addEventListener("change", applyCarryOverIfPossible);
   document.getElementById("tournamentName").addEventListener("input", applyCarryOverIfPossible);
 
-  setupTapButtons();
   renderMatches();
-  renderCloudSaveStatus();
 
   document.getElementById("googleLoginButton").addEventListener("click", handleGoogleLogin);
   document.getElementById("googleLogoutButton").addEventListener("click", handleGoogleLogout);
   document.getElementById("cloudSaveButton").addEventListener("click", handleCloudSave);
   document.getElementById("cloudLoadButton").addEventListener("click", handleCloudLoad);
 
+  loadLastCloudSaveFromStorage();
   initSupabaseAuth();
 }
+
 window.addEventListener("load", init);
 </script>
+
+
 </body>
 </html>
