@@ -1571,7 +1571,34 @@ function init(){
   loadLastCloudSaveFromStorage();
   initSupabaseAuth();
 }
+/* 先手/後手・勝敗のタップボタン用（セレクトに反映） */
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll(".tapbtn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const selectId = btn.dataset.setSelect;
+      const value = btn.dataset.value;
+      if (!selectId) return;
 
+      const select = document.getElementById(selectId);
+      if (!select) return;
+
+      // セレクトの値を更新
+      select.value = value;
+
+      // 同じグループ内のボタンの active をリセット
+      const group = btn.parentElement;  // div.tap2
+      if (group) {
+        group.querySelectorAll(".tapbtn").forEach(b => {
+          b.classList.remove("active");
+        });
+      }
+
+      // 押したボタンを active に
+      btn.classList.add("active");
+    });
+  });
+});
+  
 window.addEventListener("load", init);
 </script>
 
